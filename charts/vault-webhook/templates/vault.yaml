@@ -1,0 +1,641 @@
+apiVersion: "vault.banzaicloud.com/v1alpha1"
+kind: "Vault"
+metadata:
+  name: "vault"
+  labels:
+    app.kubernetes.io/name: vault
+    vault_cr: vault
+spec:
+  size: {{ .Values.replicasCount }}
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+
+  # Common annotations for all created resources
+  annotations:
+    common/annotation: "true"
+
+  # Vault Pods , Services and TLS Secret annotations
+  vaultAnnotations:
+    type/instance: "vault"
+
+  # Vault Configurer Pods and Services annotations
+  vaultConfigurerAnnotations:
+    type/instance: "vaultconfigurer"
+
+  # Vault Pods , Services and TLS Secret labels
+  vaultLabels:
+    example.com/log-format: "json"
+    security.banzaicloud.io/mutate: "skip"
+
+  # Vault Configurer Pods and Services labels
+  vaultConfigurerLabels:
+    example.com/log-format: "string"
+    security.banzaicloud.io/mutate: "skip"
+
+  # Support for affinity Rules
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #       - matchExpressions:
+  #         - key : "node-role.kubernetes.io/your_role"
+  #           operator: In
+  #           values: ["true"]
+
+  # Support for pod nodeSelector rules to control which nodes can be chosen to run
+  # the given pods
+  # nodeSelector:
+  #   "node-role.kubernetes.io/your_role": "true"
+
+  # Support for node tolerations that work together with node taints to control
+  # the pods that can like on a node
+  # tolerations:
+  # - effect: NoSchedule
+  #   key: node-role.kubernetes.io/your_role
+  #   operator: Equal
+  #   value: "true"
+
+  # Specify the ServiceAccount where the Vault Pod and the Bank-Vaults configurer/unsealer is running
+  serviceAccount: vault
+
+  # Specify the Service's type where the Vault Service is exposed
+  # Please note that some Ingress controllers like https://github.com/kubernetes/ingress-gce
+  # forces you to expose your Service on a NodePort
+  serviceType: ClusterIP
+
+  # Request an Ingress controller with the default configuration
+  ingress:
+    # Specify Ingress object annotations here, if TLS is enabled (which is by default)
+    # the operator will add NGINX, Traefik and HAProxy Ingress compatible annotations
+    # to support TLS backends
+    annotations:
+      cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+    # Override the default Ingress specification here
+    # This follows the same format as the standard Kubernetes Ingress
+    # See: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.13/#ingressspec-v1beta1-extensions
+    spec:
+      ingressClassName: nginx
+      rules:
+        - host: vault.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
+          http:
+            paths:
+              - backend:
+                  service:
+                    name: vault
+                    port:
+                      number: 8200
+                path: /
+                pathType: Prefix
+      tls:
+        - hosts:
+            - vault.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
+          secretName: vault-{{ .Values.cluster.namespace }}-tls
+
+  # In some cases, you have to set permissions for the raft directory.
+  # For example in the case of using a local kind cluster, uncomment the lines below.
+  # vaultInitContainers:
+  #   - name: raft-permission
+  #     image: busybox
+  #     command:
+  #       - /bin/sh
+  #       - -c
+  #       - |
+  #         chown -R 100:1000 /vault/file
+  #     volumeMounts:
+  #       - name: vault-raft
+  #         mountPath: /vault/file
+
+  # Use local disk to store Vault raft data, see config section.
+  volumeClaimTemplates:
+    - metadata:
+        name: vault-raft
+      spec:
+        # https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class-1
+        # storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: 1Gi
+
+  volumeMounts:
+    - name: vault-raft
+      mountPath: /vault/file
+
+  # Add Velero fsfreeze sidecar container and supporting hook annotations to Vault Pods:
+  # https://velero.io/docs/v1.2.0/hooks/
+  veleroEnabled: false
+
+  # Support for distributing the generated CA certificate Secret to other namespaces.
+  # Define a list of namespaces or use ["*"] for all namespaces.
+  caNamespaces:
+    - "{{ .Release.Namespace }}-vswh"
+
+  # Describe where you would like to store the Vault unseal keys and root token.
+  unsealConfig:
+    options:
+      # The preFlightChecks flag enables unseal and root token storage tests
+      # This is true by default
+      preFlightChecks: true
+      # The storeRootToken flag enables storing of root token in chosen storage
+      # This is true by default
+      storeRootToken: true
+      # The secretShares represents the total number of unseal key shares
+      # This is 5 by default
+      secretShares: 5
+      # The secretThreshold represents the minimum number of shares required to reconstruct the unseal key
+      # This is 3 by default
+      secretThreshold: 3
+    kubernetes:
+      secretNamespace: {{ .Release.Namespace }}
+
+  # A YAML representation of a final vault config file.
+  # See https://www.vaultproject.io/docs/configuration/ for more information.
+  config:
+    storage:
+      raft:
+        path: "/vault/file"
+    listener:
+      tcp:
+        address: "0.0.0.0:8200"
+        tls_cert_file: /vault/tls/server.crt
+        tls_key_file: /vault/tls/server.key
+    api_addr: https://vault.{{ .Release.Namespace }}:8200
+    cluster_addr: "http://${.Env.POD_NAME}:8201"
+    ui: true
+    disable_mlock: false
+
+  statsdDisabled: true
+
+  serviceRegistrationEnabled: true
+
+  resources:
+    # A YAML representation of resource ResourceRequirements for vault container
+    # Detail can reference: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container
+    vault: {{- toYaml .Values.resources | nindent 6 }}
+
+  # See: https://banzaicloud.com/docs/bank-vaults/cli-tool/#example-external-vault-configuration
+  # The repository also contains a lot examples in the test/deploy and operator/deploy directories.
+  externalConfig:
+    policies:
+      - name: "{{ .Values.hashicorp.secretEngine }}-policy"
+        rules: path "{{ .Values.hashicorp.secretEngine }}/*" {
+          capabilities = ["create", "read", "update", "delete", "list"]
+          }
+    auth:
+      - type: kubernetes
+        roles:
+          # Allow every pod in the default namespace to use the secret kv store
+          - name: "{{ .Values.hashicorp.role }}"
+            bound_service_account_names: ["*-sa","*-service-account","*-consumption-be","*-svc-account",'*{{ regexReplaceAll "^.*(.)$" .Values.cluster.namespace "${1}" }}',"default","keycloak","edc-connector-adapter"]
+            bound_service_account_namespaces: [{{ range $index, $item := (concat .Values.agentList.authorities .Values.agentList.providers .Values.agentList.consumers (list .Values.cluster.namespace) (list (printf "%s-vswh" .Values.cluster.namespace))) }}{{if $index}},{{end}}"{{ $item }}"{{ end }}]
+            policies: "{{ .Values.hashicorp.secretEngine }}-policy"
+            ttl: 1h
+
+    secrets:
+      - path: "{{ .Values.hashicorp.secretEngine }}"
+        type: kv
+        description: Secrets for agents.
+        options:
+          version: 2
+      - path: transit/simpl
+        type: transit
+        description: Key for Signer.
+
+    # Allows writing some secrets to Vault (useful for development purposes).
+    # See https://www.vaultproject.io/docs/secrets/kv/index.html for more information.
+    startupSecrets:
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-kafka-credentials"
+        data:
+          data:
+            redpanda: "${ env `redpandakafka_pass` }"
+            notification: "${ env `notificationkafka_pass` }"
+            {{- range .Values.agentList.authorities }}
+            "{{ . }}_authprovider": "${ env `{{ . }}_authprovider_kafka_pass` }"
+            "{{ . }}_usersroles": "${ env `{{ . }}_usersroles_kafka_pass` }"
+            "{{ . }}_onboarding": "${ env `{{ . }}_onboarding_kafka_pass` }"
+            "{{ . }}_tier2gw": "${ env `{{ . }}_tier2gw_kafka_pass` }"
+            {{- end }}
+            {{- range .Values.agentList.providers }}
+            "{{ . }}_authprovider": "${ env `{{ . }}_authprovider_kafka_pass` }"
+            "{{ . }}_usersroles": "${ env `{{ . }}_usersroles_kafka_pass` }"
+            "{{ . }}_contract": "${ env `{{ . }}_contract_kafka_pass` }"
+            "{{ . }}_infrabe": "${ env `{{ . }}_infrabe_kafka_pass` }"
+            "{{ . }}_tier2gw": "${ env `{{ . }}_tier2gw_kafka_pass` }"
+            {{- end }}
+            {{- range .Values.agentList.consumers }}
+            "{{ . }}_authprovider": "${ env `{{ . }}_authprovider_kafka_pass` }"
+            "{{ . }}_usersroles": "${ env `{{ . }}_usersroles_kafka_pass` }"
+            "{{ . }}_contract": "${ env `{{ . }}_contract_kafka_pass` }"
+            "{{ . }}_contract_consumption": "${ env `{{ . }}_contract_consumption_kafka_pass` }"
+            "{{ . }}_tier2gw": "${ env `{{ . }}_tier2gw_kafka_pass` }"
+            "{{ . }}_edcconn": "${ env `{{ . }}_edcconn_kafka_pass` }"
+            {{- end }}
+            {{- range $key, $value := .Values.kafkaCredentials }}
+            {{ $key }}: {{ $value | quote }}
+            {{- end }}
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-redpanda-credentials"
+        data:
+          data:
+            admin: "${ env `redpanda_pass` }"
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-pgadmin-credentials"
+        data:
+          data:
+            password: "${ env `pgadmin_pass` }"
+            postgres: "${ env `postgres_pass` }"
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-notifications"
+        data:
+          data:
+            "API_KEY": "apikey"
+            "KAFKA_CLIENT_PASSWORDS": "${ env `notificationkafka_pass` }"
+            "SMTP_PASSWORD": "smtppass"
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-redis"
+        data:
+          data:
+            rediscommander: "${ env `rediscommander_pass` }"
+            redis: "${ env `redis_pass` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-vault"
+        data:
+          data:
+            "token": "${ env `VAULT_TOKEN` }"
+      {{- if .Values.mailpit.enabled }}
+      - type: kv
+        path: "{{ .Values.hashicorp.secretEngine }}/data/{{ .Values.cluster.namespace }}-mailpit"
+        data:
+          data:
+            admin: "${ env `mailpit_pass` }"
+      {{- end }}
+      {{- range .Values.agentList.authorities }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-redis"
+        data:
+          data:
+            rediscommander: {{ include "rediscommander.password" $ }}
+            redis: {{ include "redis.password" $ }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-xsfc-service"
+        data:
+          data:
+            "DATASTORE_FILE_PATH": "/var/lib/fc-service/filestore"
+            "FEDERATED_CATALOGUE_VERIFICATION_SIGNATURES": "true"
+            "GRAPHSTORE_PASSWORD": "neo12345"
+            "GRAPHSTORE_QUERY_TIMEOUT_IN_SECONDS": "5"
+            "GRAPHSTORE_URI": "bolt://xsfc-neo4j:7687"
+            "SPRING_DATASOURCE_PASSWORD": "${ env `{{ . }}_fcservice` }"
+            "SPRING_DATASOURCE_URL": "jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_fcservice"
+            "SPRING_DATASOURCE_USERNAME": "{{ . }}_fcservice"
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}"
+            "OTEL_RESOURCE_ATTRIBUTES_DEPLOYMENT_ENVIRONMENT": "{{ $.Values.domainSuffix }}"
+            "OTEL_SDK_DISABLED": "false"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-adapter-simpl-backend"
+        data:
+          data:
+            "FEDERATED_CATALOOGUE_CLIENT_URL": "https://xsfc-server-service.{{ . }}.{{ $.Values.domainSuffix }}"
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}"
+            "OTEL_RESOURCE_ATTRIBUTES_DEPLOYMENT_ENVIRONMENT": "{{ $.Values.domainSuffix }}"
+            "OTEL_SDK_DISABLED": "false"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-postgres-passwords"
+        data:
+          data:
+            "{{ . }}-authenticationprovider": "${ env `{{ . }}_authenticationprovider` }"
+            "{{ . }}-ejbca": "${ env `{{ . }}_ejbca` }"
+            "{{ . }}-identityprovider": "${ env `{{ . }}_identityprovider` }"
+            "{{ . }}-keycloak": "${ env `{{ . }}_keycloak` }"
+            "{{ . }}-onboarding": "${ env `{{ . }}_onboarding` }"
+            "{{ . }}-securityattributesprovider": "${ env `{{ . }}_securityattributesprovider` }"
+            "{{ . }}-usersroles": "${ env `{{ . }}_usersroles` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-keycloak"
+        data:
+          data:
+            "admin": "${ env `{{ . }}_kcadmin` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-ejbca"
+        data:
+          data:
+            "keystorepass": "${ env `{{ . }}_ejbcakspass` }"
+      {{- end }}
+      {{- range .Values.agentList.providers }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-redis"
+        data:
+          data:
+            rediscommander: {{ include "rediscommander.password" $ }}
+            redis: {{ include "redis.password" $ }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-contract"
+        data:
+          data:
+            "API_KEY": "apikey"
+            "DB_URL": "jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_contract"
+            "DB_USER": "{{ . }}_contract"
+            "DBPASSWORD": "${ env `{{ . }}_contract` }"
+            "KAFKA_CLIENT_PASSWORDS": "${ env `{{ . }}_contract_kafka_pass` }"
+            "KAFKA_CLIENT_USER": "{{ . }}_contract"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-postgres-passwords"
+        data:
+          data:
+            "{{ . }}-authenticationprovider": "${ env `{{ . }}_authenticationprovider` }"
+            "{{ . }}-keycloak": "${ env `{{ . }}_keycloak` }"
+            "{{ . }}-usersroles": "${ env `{{ . }}_usersroles` }"
+            "{{ . }}-infrabe": "${ env `{{ . }}_infrabe` }"
+            "{{ . }}-edc": "${ env `{{ . }}_edc` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-keycloak"
+        data:
+          data:
+            "admin": "${ env `{{ . }}_kcadmin` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-gitea"
+        data:
+          data:
+            "gitops_test": "${ env `{{ . }}_gitea` }"
+      {{- end }}
+      {{- range .Values.agentList.consumers }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-redis"
+        data:
+          data:
+            rediscommander: {{ include "rediscommander.password" $ }}
+            redis: {{ include "redis.password" $ }}
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-contract"
+        data:
+          data:
+            "API_KEY": "apikey"
+            "DBPASSWORD": "${ env `{{ . }}_contract` }"
+            "DB_URL": "jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_contract"
+            "DB_USER": "{{ . }}_contract"
+            "KAFKA_CLIENT_PASSWORDS": "${ env `{{ . }}_contract_kafka_pass` }"
+            "KAFKA_CLIENT_USER": "{{ . }}_contract"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-contract-consumption-be"
+        data:
+          data:
+            "KAFKA_AUTH_SASL_PASSWORD": "${ env `{{ . }}_contract_consumption_kafka_pass` }"
+            "KAFKA_AUTH_SASL_USERNAME": "{{ . }}_contract_consumption"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-edc-connector-adapter"
+        data:
+          data:
+            "KAFKA_AUTH_SASL_PASSWORD": "${ env `{{ . }}_edcconn_kafka_pass` }"
+            "KAFKA_AUTH_SASL_USERNAME": "{{ . }}_edcconn" 
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-postgres-passwords"
+        data:
+          data:
+            "{{ . }}-authenticationprovider": "${ env `{{ . }}_authenticationprovider` }"
+            "{{ . }}-keycloak": "${ env `{{ . }}_keycloak` }"
+            "{{ . }}-usersroles": "${ env `{{ . }}_usersroles` }"
+            "{{ . }}-edc": "${ env `{{ . }}_edc` }"
+      - type: kv
+        path: "{{ $.Values.hashicorp.secretEngine }}/data/{{ . }}-keycloak"
+        data:
+          data:
+            "admin": "${ env `{{ . }}_kcadmin` }"
+      {{- end }}
+
+  vaultEnvsConfig:
+    - name: VAULT_LOG_LEVEL
+      value: debug
+  envsConfig:
+    - name: "postgres_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "postgres.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "pgadmin_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "pg-admin-secret"
+          key: password
+    - name: "redpanda_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "redpanda-secret"
+          key: password
+    - name: "redpandakafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: redpanda
+    - name: "notificationkafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: notification
+    - name: "mailpit_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "mailpit-secrets"
+          key: ui
+    {{- range .Values.agentList.authorities }}
+    - name: "{{ . }}_kcadmin"
+      valueFrom:
+        secretKeyRef:
+          name: "keycloak-secrets"
+          key: {{ . }}
+    - name: "{{ . }}_fcservice"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-fcservice.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authenticationprovider"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_ejbca"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-ejbca.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_identityprovider"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-identityprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_keycloak"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_onboarding"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-onboarding.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_securityattributesprovider"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-securityattributesprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_usersroles"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authprovider_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_authprovider"
+    - name: "{{ . }}_usersroles_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_usersroles"
+    - name: "{{ . }}_tier2gw_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_tier2gw"
+    - name: "{{ . }}_onboarding_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_onboarding"
+    - name: "{{ . }}_ejbcakspass"
+      valueFrom:
+        secretKeyRef:
+          name: "ejbca-secret"
+          key: "keystorepass"
+    {{- end }}
+    {{- range .Values.agentList.providers }}
+    - name: "{{ . }}_kcadmin"
+      valueFrom:
+        secretKeyRef:
+          name: "keycloak-secrets"
+          key: {{ . }}
+    - name: "{{ . }}_contract"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-contract.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_edc"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-edc.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_infrabe"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-infrabe.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authenticationprovider"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_keycloak"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_usersroles"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authprovider_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_authprovider"
+    - name: "{{ . }}_usersroles_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_usersroles"
+    - name: "{{ . }}_contract_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_contract"
+    - name: "{{ . }}_infrabe_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_infrabe"
+    - name: "{{ . }}_tier2gw_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_tier2gw"
+    - name: "{{ . }}_gitea"
+      valueFrom:
+        secretKeyRef:
+          name: "gitea-secrets"
+          key: "gitops_test"
+    {{- end }}
+    {{- range .Values.agentList.consumers }}
+    - name: "{{ . }}_kcadmin"
+      valueFrom:
+        secretKeyRef:
+          name: "keycloak-secrets"
+          key: {{ . }}
+    - name: "{{ . }}_contract"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-contract.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_edc"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-edc.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authenticationprovider"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_keycloak"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_usersroles"
+      valueFrom:
+        secretKeyRef:
+          name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
+          key: password
+    - name: "{{ . }}_authprovider_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_authprovider"
+    - name: "{{ . }}_usersroles_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_usersroles"
+    - name: "{{ . }}_contract_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_contract"
+    - name: "{{ . }}_contract_consumption_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_contract_consumption" 
+    - name: "{{ . }}_tier2gw_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_tier2gw"
+    - name: "{{ . }}_edcconn_kafka_pass"
+      valueFrom:
+        secretKeyRef:
+          name: "kafka-users-secret"
+          key: "{{ . }}_edcconn"
+    {{- end }}

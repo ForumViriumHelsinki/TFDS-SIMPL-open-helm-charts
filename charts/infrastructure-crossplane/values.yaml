@@ -1,0 +1,14 @@
+cliEnabled: true
+gitopsWorkflowImage: code.europa.eu:4567/simpl/simpl-open/development/infrastructure/infrastructure-crossplane/gitops:2.1.2
+observerImage: code.europa.eu:4567/simpl/simpl-open/development/infrastructure/infrastructure-crossplane/observer:2.1.2
+
+kafkaAuthEnable: true
+kafkaAuthMechanism: PLAIN
+kafkaProvisioningRequestsTopicName: to-provision
+kafkaProvisioningResponsesTopicName: provisioned
+kafkaDecommissioningRequestsTopicName: to-decommission
+kafkaDecommissioningResponsesTopicName: decommissioned
+
+configuration:
+  packages:
+    - code.europa.eu:4567/simpl/simpl-open/development/infrastructure/infrastructure-crossplane/configuration:2.1.2

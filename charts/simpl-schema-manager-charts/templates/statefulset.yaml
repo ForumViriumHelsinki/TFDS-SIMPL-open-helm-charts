@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-statefulset
+  labels:
+    app: {{ .Values.statefulset.label }}
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.statefulset.label }}
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .Values.hashicorp.role }}
+        {{- if and (hasKey .Values "hashicorp") (hasKey .Values.hashicorp "service") }}
+        vault.hashicorp.com/service: {{ .Values.hashicorp.service }}
+        {{- end }}
+        vault.hashicorp.com/agent-inject-secret-config.txt: "{{ tpl .Values.hashicorp.secretConfigPath . }}"
+        vault.hashicorp.com/agent-inject-template-config.txt: |
+          {{- $secretPath := tpl .Values.hashicorp.secretConfigPath . -}}
+          {{- $template := printf (printf "{{`{{ with secret \"%s\" }}\n" $secretPath) -}}
+          {{- $template = printf "%s{{ range $k, $v := .Data.data }}\n" $template -}}
+          {{- $template = printf "%s  export {{ $k }}={{ $v }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}`}}" $template -}}
+          {{- tpl $template . | nindent 10 }}
+      labels:
+        app: {{ .Values.statefulset.label }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Namespace }}
+      automountServiceAccountToken: true
+      # This is needed for access to pv. I've got this information by executing 'docker exec <container_name> id'
+      # on locally launched container
+      securityContext:
+        runAsUser: 9008
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fuseki
+          command: [ "/bin/sh", "-c" ]
+          # value after exec is taken from secoresearch/fuseki:5.3.0 Dockerfile from ENTRYPOINT and CMD
+          args:
+            - |
+              # Source the Vault secrets
+              source /vault/secrets/config.txt
+              # Start Fuseki with the default command command was taken from executing
+              # docker inspect secoresearch/fuseki:5.3.0 | jq '.[0].Config.Cmd'
+              exec /docker-entrypoint.sh java -cp *:/javalibs/* org.apache.jena.fuseki.main.cmds.FusekiServerCmd
+
+          image: "{{ .Values.image.fuseki.repository }}:{{ .Values.image.fuseki.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.fuseki.containerPort }}
+          resources:
+            {{ toYaml .Values.resources.fuseki | nindent 12 }}
+          # Mount volume defined from the list provided by volumeClaimTemplates. Names must match to be properly mounted
+          volumeMounts:
+            # Mount the entire volume at the base path
+            - name: fuseki-data
+              mountPath: /fuseki-base/configuration
+              readOnly: false
+            - name: fuseki-data
+              mountPath: /fuseki-base/databases
+              readOnly: false
+  # This section will automatically create the PVC, so there is no need to create a file manually
+  volumeClaimTemplates:
+    - metadata:
+        name: fuseki-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.size }}

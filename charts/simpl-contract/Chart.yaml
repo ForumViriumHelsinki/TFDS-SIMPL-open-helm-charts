@@ -1,0 +1,6 @@
+apiVersion: v2
+name: simpl-contract
+description: A Helm chart for Kubernetes
+type: application
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"

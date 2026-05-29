@@ -1,0 +1,6 @@
+apiVersion: v2
+name: infrastructure-consumption-monitoring-service
+description: Infrastructure Consumption Monitoring Service helm chart
+type: application
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"

@@ -1,0 +1,39 @@
+deployment:
+  image:
+    artifact: ${CI_REGISTRY_IMAGE}
+    tag: ${PROJECT_RELEASE_VERSION}
+    pullPolicy: Always
+  replicas: 1
+  kafka:
+    bootstrapServer: kafka.be-common.svc.cluster.local:9092
+    clientUser: user1
+    securityProtocol: SASL_PLAINTEXT
+    retryTopicBackoffDelay: 10s
+    sasl:
+      mechanism: PLAIN
+  mail:
+    smtpHost: ssl0.ovh.net
+    smtpUser: dev@simpl-europe.eu
+    defaultReceiver: simpl_tech@simpl-europe.eu
+  vault:
+    hashicorp:
+      role: "notification-service"
+      service: "https://vault.tools.simpl-europe.eu/"
+      secretEngine: kv
+      secretConfigPath: "{{ .Values.deployment.vault.hashicorp.secretEngine }}/notifications"
+  otel:
+    endpoint: "http://collector.common01.dev.simpl-europe.eu/"
+
+environment: default
+resources:
+  requests:
+    memory: "300Mi"
+    cpu: "150m"
+  limits:
+    memory: "700Mi"
+    cpu: "300m"
+
+probe:
+  endpoint: "/actuator/health"
+  scheme: HTTP
+  port: 8080

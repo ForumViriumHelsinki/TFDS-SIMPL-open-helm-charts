@@ -1,0 +1,346 @@
+# =============================================================================
+# DAGSTER HELM CHART CONFIGURATION - TEST ENVIRONMENT
+# =============================================================================
+# This file contains test environment specific overrides for Dagster deployment
+# This inherits from values.yaml and overrides specific configurations for test env
+
+dagster:
+  # ===========================================================================
+  # USER CODE DEPLOYMENTS - TEST ENVIRONMENT
+  # ===========================================================================
+  # Configuration for deploying user-defined Dagster code locations
+  # Test environment setup with reduced resources for development and testing
+  # MANAGED MY GITLAB CI/CD - DO NOT CHANGE MANUALLY
+  dagster-user-deployments:
+    deployments:
+      - name: field-level-pseudo-anonymisation
+        location_name: field_level_pseudo_anonymisation
+        enabled: true
+        enableSubchart: true
+        
+        # Code server configuration - defines how the Dagster code server starts
+        # Specifies the entry point for the Dagster repository
+        codeServerArgs:
+          - "--host"
+          - "0.0.0.0"                                      # Bind to all interfaces
+          - "--port"
+          - "4000"                                         # Internal service port
+          - "--python-file"
+          - "src/field_level_pseudo_anonymisation/repository.py"         # Repository definition file
+      
+        
+        # Container image configuration for the code location
+        # Uses GitLab container registry with specific version for test stability
+        # MANAGED MY GITLAB CI/CD - DO NOT CHANGE MANUALLY
+        image:
+          pullPolicy: IfNotPresent                         # Cache images locally for faster startup
+          repository: code.europa.eu:4567/simpl/simpl-open/development/data-services/field-level-pseudo-anonymisation
+          tag: 0.4.0                                 # Pinned version for test consistency          
+        
+        # Port configuration - must match codeServerArgs port
+        port: 4000
+        
+        # Resource limits optimized for test environment
+        # Increased allocation for field-level-pseudo-anonymisation workload
+        resources:
+          requests:
+            cpu: 200m      # Minimum CPU for pseudo-anonymisation processing
+            memory: 512Mi  # Base memory for Python application
+          limits:
+            cpu: 1000m     # CPU burst limit for intensive operations
+            memory: 2Gi    # Memory ceiling for data processing
+        
+        
+        # Health checks for container lifecycle management
+        # Ensures containers are ready before receiving traffic
+        livenessProbe:
+          enabled: true
+          periodSeconds: 30      # Check every 30 seconds
+          timeoutSeconds: 5      # 5 second timeout per check
+          failureThreshold: 3    # Restart after 3 consecutive failures
+        
+        readinessProbe:
+          enabled: true
+          periodSeconds: 10      # More frequent readiness checks
+          timeoutSeconds: 3      # Shorter timeout for readiness
+          failureThreshold: 3    # Mark unready after 3 failures
+        
+      - name: dataframe-level-anonymisation
+        location_name: dataframe_level_anonymisation
+        enabled: true
+        enableSubchart: true
+        
+        # Code server configuration - defines how the Dagster code server starts
+        # Specifies the entry point for the Dagster repository
+        codeServerArgs:
+          - "--host"
+          - "0.0.0.0"                                      # Bind to all interfaces
+          - "--port"
+          - "4000"                                         # Internal service port
+          - "--python-file"
+          - "src/dataframe_level_anonymisation/repository.py"         # Repository definition file
+      
+        
+        # Container image configuration for the code location
+        # Uses GitLab container registry with specific version for test stability
+        # MANAGED MY GITLAB CI/CD - DO NOT CHANGE MANUALLY
+        image:
+          pullPolicy: IfNotPresent                         # Cache images locally for faster startup
+          repository: code.europa.eu:4567/simpl/simpl-open/development/data-services/dataframe-level-anonymisation
+          tag: 0.4.0                                 # Pinned version for test consistency
+          
+        
+        # Port configuration - must match codeServerArgs port
+        port: 4000
+        
+        # Resource limits optimized for test environment
+        # Conservative allocation to allow multiple services on limited test infrastructure
+        resources:
+          requests:
+            cpu: 100m      # Minimum CPU - adequate for test workloads
+            memory: 256Mi  # Base memory for Python application
+          limits:
+            cpu: 500m      # CPU burst limit - prevents resource starvation
+            memory: 512Mi  # Memory ceiling - sufficient for test scenarios
+        
+        # Health checks for container lifecycle management
+        # Ensures containers are ready before receiving traffic
+        livenessProbe:
+          enabled: true
+          periodSeconds: 30      # Check every 30 seconds
+          timeoutSeconds: 5      # 5 second timeout per check
+          failureThreshold: 3    # Restart after 3 consecutive failures
+        
+        readinessProbe:
+          enabled: true
+          periodSeconds: 10      # More frequent readiness checks
+          timeoutSeconds: 3      # Shorter timeout for readiness
+          failureThreshold: 3    # Mark unready after 3 failures
+        
+        # Security context for user deployment pod
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+  
+  # ===========================================================================
+  # DATABASE CONFIGURATION - TEST ENVIRONMENT
+  # ===========================================================================
+  # PostgreSQL database configuration optimized for test environment
+  # Uses ephemeral storage and reduced resources for faster startup and teardown
+  postgresql:
+    enabled: true
+    auth:
+      existingSecret: postgres-secret                      # Database credentials from K8s secret
+    primary:
+      persistence:
+        enabled: false                                     # Ephemeral storage for test - data lost on restart
+      # Resource allocation for PostgreSQL in test environment
+      # Minimal resources sufficient for test data volumes
+      resources:
+        requests:
+          cpu: 100m      # Minimum CPU for database operations
+          memory: 256Mi  # Base memory for PostgreSQL
+        limits:
+          cpu: 500m      # CPU burst for query processing
+          memory: 512Mi  # Memory limit prevents OOM in test environment
+  
+  # ===========================================================================
+  # DAGSTER WEBSERVER - TEST ENVIRONMENT
+  # ===========================================================================
+  # Web UI configuration for Dagster in test environment
+  # Includes debug settings and appropriate resource allocation
+  dagsterWebserver:
+    
+    # Health checks for the web server
+    readinessProbe:
+      httpGet:
+        path: /dagster/server_info
+        port: 80
+    livenessProbe:
+      httpGet:
+        path: /dagster/server_info
+        port: 80
+    
+    # Resource allocation for the web interface
+    # Higher memory limit to accommodate debug logging and UI operations
+    resources:
+      requests:
+        cpu: 100m      # Minimum CPU for web server
+        memory: 256Mi  # Base memory for Django application
+      limits:
+        cpu: 500m      # CPU burst for UI rendering and API calls
+        memory: 1Gi    # Higher memory limit for debug mode and caching
+    
+    # Environment-specific variables for test configuration
+    env:
+      - name: DAGSTER_ENVIRONMENT
+        value: "test"                                      # Identifies test environment
+      - name: LOG_LEVEL
+        value: "DEBUG"
+      - name: DAGSTER_WEBSERVER_PATH_PREFIX
+        value: "/dagster"
+    
+    # Service configuration for internal cluster communication
+    service:
+      type: ClusterIP                                      # Internal service only
+      port: 80                                             # Standard HTTP port
+  
+  # ===========================================================================
+  # INGRESS CONFIGURATION - TEST ENVIRONMENT
+  # ===========================================================================
+  # External access configuration for test environment
+  # Includes SSL termination and nginx optimizations
+  ingress:
+    enabled: true
+    
+    # Ingress annotations for SSL, routing, and performance
+    annotations:
+      cert-manager.io/cluster-issuer: dev-prod             # Certificate issuer for test domain
+      # Ingress controller specification
+      kubernetes.io/ingress.class: nginx                  # Use nginx ingress controller
+      # Nginx-specific configurations for test workloads
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"  # Allow larger uploads for test data
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"  # Extended timeout for long operations
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"  # Extended timeout for responses
+      nginx.ingress.kubernetes.io/use-regex: "true"
+      nginx.ingress.kubernetes.io/proxy-pass-headers: "Host"
+    
+    # Webserver ingress routing configuration
+    dagsterWebserver:
+      host: dagit-ui.dataorchestrator.dev.simpl-europe.eu  # Test environment domain
+      path: /                                      # Root path routing
+      pathType: Prefix                                     # Prefix-based routing
+      precedingPaths: []                                   # No additional paths before
+      succeedingPaths: []                                  # No additional paths after
+
+      # Workspace configuration
+      workspace:
+        enabled: false      # Disable workspace.yaml (use code locations instead)
+      
+      # Startup probe configuration
+      startupProbe:
+        enabled: true
+        httpGet:
+          path: /dagster
+          port: 80
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 30
+      
+      # TLS/SSL configuration for secure access
+      tls:
+        enabled: true                                      # Enable HTTPS
+        secretName: dagster-tls                           # TLS certificate secret
+  
+  # ===========================================================================
+  # RUN LAUNCHER - TEST ENVIRONMENT
+  # ===========================================================================
+  # Configuration for launching Dagster runs as Kubernetes jobs
+  # Optimized for test environment with conservative resource limits
+  runLauncher:
+    type: K8sRunLauncher                                   # Use Kubernetes job launcher
+    config:
+      k8sRunLauncher:
+        runK8sConfig:
+          # Resource allocation for individual pipeline runs
+          # Conservative limits appropriate for test data volumes
+          containerConfig:
+            resources:
+              requests:
+                cpu: 100m      # Minimum CPU per run
+                memory: 128Mi  # Base memory per run
+              limits:
+                cpu: 200m      # CPU limit per run - prevents resource monopolization
+                memory: 256Mi  # Memory limit per run - adequate for test pipelines
+            env:
+              - name: DAGSTER_TELEMETRY_ENABLED
+                value: "false"  # Disable telemetry to avoid writing to /opt/dagster
+        
+        # Kubernetes job configuration
+        jobNamespace: dagster                              # Namespace for run jobs
+        imagePullPolicy: IfNotPresent                      # Use cached images when available
+        failPodOnRunFailure: true                          # Fail pod when run fails for better monitoring
+                
+        # Security context for run pods - follows security best practices
+        securityContext:
+          runAsNonRoot: true                               # Prevent root execution for security
+          runAsUser: 1000                                  # Use same user as global securityContext
+          allowPrivilegeEscalation: false                  # Prevent privilege escalation attacks
+          seccompProfile:
+            type: RuntimeDefault                           # Use default seccomp profile for security
+          capabilities:
+            drop:
+              - ALL                                        # Drop all Linux capabilities for security
+    
+  # ===========================================================================
+  # MONITORING AND OBSERVABILITY - TEST ENVIRONMENT
+  # ===========================================================================
+  # Configure monitoring for test environment
+  
+  # Metrics configuration (if using Prometheus)
+  # serviceMonitor:
+  #   enabled: true
+  #   namespace: monitoring
+  
+  # ===========================================================================
+  # SECURITY CONFIGURATION - TEST ENVIRONMENT
+  # ===========================================================================
+  # Security settings optimized for test environment
+  # Follows security best practices while maintaining test flexibility
+  serviceAccount:
+    create: true                                           # Create dedicated service account
+    name: dagster-test                                     # Test-specific service account name
+    annotations: {}                                        # Additional annotations if needed
+    automountServiceAccountToken: false                    # Disable automount of API credentials for security
+  
+  # Pod Security Context - runs as non-root for security
+  securityContext:
+    runAsNonRoot: true                                     # Prevent root execution
+    runAsUser: 1000                                        # Specific user ID
+    seccompProfile:
+      type: RuntimeDefault                                 # Use default seccomp profile for security
+  
+  # ===========================================================================
+  # ADDITIONAL TEST ENVIRONMENT CONFIGURATIONS
+  # ===========================================================================
+  
+  # Optional node scheduling configurations for test environment
+  # nodeSelector:                                          # Uncomment to schedule on specific nodes
+  #   environment: test
+  
+  # tolerations: []                                        # Uncomment to add pod tolerations
+
+  # ===========================================================================
+  # DAGSTER DAEMON CONFIGURATION - TEST ENVIRONMENT
+  # ===========================================================================
+  # The Dagster Daemon is responsible for managing scheduled runs, sensors,
+  # and other background processes. Configuration optimized for test environment.
+  dagsterDaemon:
+    # Security context for daemon pod
+    
+    # Resource allocation for the daemon process
+    # Test environment uses conservative limits to reduce resource consumption
+    resources:
+      requests:
+        cpu: 100m      # Minimum CPU allocation - sufficient for test workloads
+        memory: 256Mi  # Base memory requirement for daemon operations
+      limits:
+        cpu: 500m      # Maximum CPU burst - prevents resource starvation
+        memory: 512Mi  # Memory ceiling - adequate for test environment scale
+    
+    # Run coordination settings for managing pipeline execution
+    runCoordinator:
+      config:
+        queuedRunCoordinator:
+          # Concurrent run limit optimized for test environment
+          # Prevents resource exhaustion while allowing parallel testing
+          maxConcurrentRuns: 5  # Limitato per test come gli altri componenti
+
+  # ===========================================================================
+  # TELEMETRY CONFIGURATION
+  # ===========================================================================
+  # Disable telemetry to avoid permission issues with /opt/dagster
+  telemetry:
+    enabled: false

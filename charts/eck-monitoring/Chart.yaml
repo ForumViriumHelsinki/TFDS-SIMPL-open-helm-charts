@@ -1,0 +1,6 @@
+name: eck-monitoring
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"
+#version: 0.2.0
+
+

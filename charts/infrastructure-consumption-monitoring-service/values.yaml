@@ -1,0 +1,48 @@
+deployment:
+  image:
+    artifact: ${CI_REGISTRY_IMAGE}
+    tag: ${PROJECT_RELEASE_VERSION}
+    pullPolicy: Always
+  replicas: 1
+  kafka:
+    bootstrapServer: kafka.be-common.svc.cluster.local:9092
+    clientUser: user1
+    securityProtocol: SASL_PLAINTEXT
+    retryTopicBackoffDelay: 10s
+    listener:
+      timeout: 5
+    sasl:
+      mechanism: PLAIN
+  vault:
+    hashicorp:
+      role: "infrastructure-consumption-monitoring-service"
+      service: "https://vault.tools.simpl-europe.eu/"
+      secretEngine: kv/monitoring
+      secretConfigPath: "{{ .Values.deployment.vault.hashicorp.secretEngine }}/infrastructure-consumption-monitoring"
+  otel:
+    endpoint: "http://collector.common01.dev.simpl-europe.eu/"
+  ovh:
+    host: "https://eu.api.ovh.com/v1/cloud/project/"
+    project_id: "ea5f1127cb1f407899c1e91d490b34e5"
+    initialReportOffsetInMonths: 3
+    schedule: "0 0 0 1 * *"
+    currentSchedule: "0 20 */1 * * *"
+  mockedPlugin:
+    randomFailsEnabled: false
+    schedule: "0 0 0 */1 * *"
+    testFailEveryXMinutes: 3
+  failedEvents:
+    retrySchedule: "0 */5 * * * *"
+environment: default
+resources:
+  requests:
+    memory: "300Mi"
+    cpu: "150m"
+  limits:
+    memory: "700Mi"
+    cpu: "300m"
+
+probe:
+  endpoint: "/actuator/health"
+  scheme: HTTP
+  port: 8080

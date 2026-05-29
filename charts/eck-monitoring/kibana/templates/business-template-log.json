@@ -1,0 +1,45 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "business-ilm"
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "timestamp": {
+            "type": "date"
+          },        
+        "origin": {
+          "type": "keyword"
+        },
+        "destination": {
+          "type": "keyword"
+        },
+        "businessOperations": {
+          "type": "keyword"
+        },
+        "messageType": {
+          "type": "keyword"
+        },
+        "correlationId": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "index_patterns": [
+    "business-logs"
+  ],
+  "data_stream": {
+    "hidden": false,
+    "allow_custom_routing": false
+  },
+  "composed_of": [],
+  "priority": 200
+}

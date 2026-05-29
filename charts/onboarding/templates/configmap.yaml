@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-configmap
+data:
+  SPRING_CONFIG_IMPORT: {{ .Values.extraConfigImport | quote }}
+
+  SPRING_DATASOURCE_URL: {{ tpl .Values.db.url . | quote }}
+  SPRING_DATASOURCE_USERNAME: {{ .Values.db.username | quote }}
+  SPRING_DATASOURCE_PASSWORD: {{ .Values.db.password | quote }}
+
+  MICROSERVICE_IDENTITY_PROVIDER_URL: {{ tpl .Values.microservices.identityProviderUrl . | quote }}
+  MICROSERVICE_USERS_ROLES_URL: {{ tpl .Values.microservices.usersRolesUrl . | quote }}
+  MICROSERVICE_SECURITY_ATTRIBUTES_PROVIDER_URL: {{ tpl .Values.microservices.securityAttributesProviderUrl . | quote }}
+
+  {{- if .Values.devMode  }}
+  LOGGING_CONFIG: classpath:log4j2-local.xml
+  {{- end }}

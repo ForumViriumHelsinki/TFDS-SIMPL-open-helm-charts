@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: watch-openbao-replicas
+spec:
+  schedule: "*/4 * * * *"  # every four minutes
+  successfulJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: openbao-{{ .Values.cluster.namespace }}-svc-account
+          automountServiceAccountToken: false
+          securityContext: 
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: kube-api-token
+            projected:
+              defaultMode: 420
+              sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                  - key: ca.crt
+                    path: ca.crt
+              - downwardAPI:
+                  items:
+                  - fieldRef:
+                      fieldPath: metadata.namespace
+                    path: namespace
+          containers:
+            - name: watcher
+              image: alpine/kubectl
+              volumeMounts:
+              - name: kube-api-token
+                mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  READY=$(kubectl get statefulset openbao-{{ .Values.cluster.namespace }} -n {{ .Values.cluster.namespace }} \
+                    -o jsonpath='{.status.readyReplicas}')
+
+                  READY=${READY:-0}
+
+                  if [ "$READY" != {{ .Values.replicas }} ]; then
+                    echo "Changed: {{ .Values.replicas }} -> $READY, triggering job..."
+                    kubectl create job reinit-$(date +%s) --from=cronjob/openbao-init
+                  fi

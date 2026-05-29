@@ -1,0 +1,58 @@
+image:
+  pullPolicy: IfNotPresent
+  fuseki:
+    repository: secoresearch/fuseki
+    tag: "5.3.0"
+  schemaManager:
+    repository: "${CI_REGISTRY_IMAGE}"
+    tag: "${PROJECT_RELEASE_VERSION}"
+
+service:
+  fuseki:
+    servicePort: 3030
+    containerPort: 3030
+    name: fuseki-service
+  schemaManager:
+    servicePort: 8085
+    containerPort: 8085
+    name: schema-manager-service
+
+resources:
+  fuseki:
+    limits:
+      cpu: 250m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 2Gi
+  schemaManager:
+    limits:
+      cpu: 250m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 2Gi
+
+statefulset:
+  label: fusekidb
+  size: 10Gi
+deployment:
+  label: schemaManager
+serviceAccount:
+  enabled: false
+
+hashicorp:
+  role: "gaiax"
+  service: "https://vault.tools.simpl-europe.eu/"
+  secretEngine: kv/gaia-x
+  secretConfigPath: "{{ .Values.hashicorp.secretEngine }}/{{ .Release.Namespace }}-simpl-schema-manager"
+
+ingress:
+  enabled: true
+  host: schema-manager.dev.simpl-europe.eu
+  path: /v1/(.*)  # Single capture group for everything after /v1/
+  pathType: Prefix  # Path matching type: Exact, Prefix, or ImplementationSpecific
+  tls:
+    secretName: schema-manager-tls
+  clusterIssuer: dev-prod
+  ingressClass: nginx

@@ -1,0 +1,41 @@
+SERVICE_PORT: 8084
+CONTAINER_PORT: 8084
+DEPLOYMENT_IMAGE_PULL_POLICY: Always
+REPOSITORY: "${CI_REGISTRY_IMAGE}"
+TAG: "${PROJECT_RELEASE_VERSION}"
+
+secretEngine: kv/gaia-x
+secretConfigPath: "{{ .Values.secretEngine }}/{{ .Release.Namespace }}-adapter-simpl-backend"
+
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+    cpu: 250m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 2Gi
+
+ingress:
+  enabled: true
+  host: adapter.dev.simpl-europe.eu
+  path: /v1/(.*)  # Single capture group for everything after /v1/
+  tls:
+    secretName: adapter-tls
+  clusterIssuer: dev-prod
+  ingressClass: nginx
+
+
+deployment:
+  label: poc
+
+serviceAccount:
+  enabled: false
+
+hashicorp:
+  role: "gaiax"
+  service: "https://vault.tools.simpl-europe.eu/"

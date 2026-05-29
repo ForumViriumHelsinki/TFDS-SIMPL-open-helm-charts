@@ -1,0 +1,24 @@
+replicaCount: 1
+
+image:
+  repository: "${CI_REGISTRY_IMAGE}"
+  pullPolicy: IfNotPresent
+  tag: "${PROJECT_RELEASE_VERSION}"
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "200m"
+    memory: "128Mi"
+
+ingress:
+  hostname: files.dev.simpl-europe.eu
+  secretName: simpl-tls-files
+  clusterIssuer: dev-prod
+  ingressClass: nginx

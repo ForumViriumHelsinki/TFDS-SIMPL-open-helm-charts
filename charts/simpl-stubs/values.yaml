@@ -1,0 +1,22 @@
+deployment:
+  image:
+    artifact: code.europa.eu:4567/simpl/simpl-open/development/contract-billing/stubs
+    tag: ${PROJECT_RELEASE_VERSION}
+    pullPolicy: Always
+  replicas: 1
+  otel:
+    endpoint: "http://collector.common01.dev.simpl-europe.eu/"
+
+environment: default
+resources:
+  requests:
+    memory: "300Mi"
+    cpu: "150m"
+  limits:
+    memory: "700Mi"
+    cpu: "300m"
+
+probe:
+  endpoint: "/actuator/health"
+  scheme: HTTP
+  port: 8080

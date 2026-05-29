@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+  labels:
+    app: {{ .Values.deployment.label }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.deployment.label }}
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .Values.hashicorp.role }}
+        {{- if and (hasKey .Values "hashicorp") (hasKey .Values.hashicorp "service") }}
+        vault.hashicorp.com/service: {{ .Values.hashicorp.service }}
+        {{- end }}
+        vault.hashicorp.com/agent-inject-secret-config.txt: "{{ tpl .Values.hashicorp.secretConfigPath . }}"
+        vault.hashicorp.com/agent-inject-template-config.txt: |
+          {{- $secretPath := tpl .Values.hashicorp.secretConfigPath . -}}
+          {{- $template := printf (printf "{{`{{ with secret \"%s\" }}\n" $secretPath) -}}
+          {{- $template = printf "%s{{ range $k, $v := .Data.data }}\n" $template -}}
+          {{- $template = printf "%s  export {{ $k }}={{ $v }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}`}}" $template -}}
+          {{- tpl $template . | nindent 10 }}
+      labels:
+        app: {{ .Values.deployment.label }}
+    spec:
+      initContainers:
+        - name: wait-for-fuseki
+          image: busybox:1.28
+          command: [ 'sh', '-c',
+            'until wget --spider --timeout=2 --tries=1 http://{{ .Values.service.fuseki.name }}:3030/;
+             do echo "Waiting for Fuseki to be ready..."; sleep 5; done;
+             echo "Fuseki is ready!"' ]
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Namespace }}
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: simpl-schema-manager
+          image: {{ .Values.image.schemaManager.repository }}:{{ .Values.image.schemaManager.tag }}
+          command: [ "/bin/sh" ]
+          args: [ "-c", "source /vault/secrets/config.txt && java -jar /simpl-schema-manager-0.0.1-SNAPSHOT.jar" ]
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.schemaManager.containerPort }}
+          resources:
+            {{- toYaml .Values.resources.schemaManager | nindent 12 }}

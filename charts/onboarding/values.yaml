@@ -1,0 +1,267 @@
+# ------------------------------------------------------------------------------
+# Container image configuration
+# ------------------------------------------------------------------------------
+image:
+  repository: ${CI_REGISTRY_IMAGE}
+  tag: ${PROJECT_RELEASE_VERSION}
+  pullPolicy: Always
+
+# ------------------------------------------------------------------------------
+# Deployment configuration
+# ------------------------------------------------------------------------------
+# Number of desired pod replicas.
+replicaCount: 1
+
+# Secrets used to pull images from private registries.
+imagePullSecrets: []
+
+# Overrides for chart-generated resource names.
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------------
+# Service account configuration
+# ------------------------------------------------------------------------------
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created.
+  create: true
+
+  # Automatically mount the ServiceAccount token.
+  automount: true
+
+  # Annotations to add to the ServiceAccount.
+  annotations: {}
+
+  # Name of an existing ServiceAccount to use.
+  # If empty and create is true, a name is generated.
+  name: ""
+
+# ------------------------------------------------------------------------------
+# Pod metadata
+# ------------------------------------------------------------------------------
+# Annotations applied to the Pod.
+podAnnotations: {}
+
+# Labels applied to the Pod.
+podLabels: {}
+
+# ------------------------------------------------------------------------------
+# Security contexts
+# ------------------------------------------------------------------------------
+
+# Pod-level security context.
+# Use this section to define shared security settings for all containers.
+podSecurityContext: {}
+
+# Container-level security context.
+securityContext:
+  # Drop all Linux capabilities by default.
+  capabilities:
+    drop:
+      - ALL
+
+  # Whether the container root filesystem should be read-only.
+  readOnlyRootFilesystem: false
+
+  # Enforce non-root execution.
+  runAsNonRoot: true
+  runAsUser: 1001
+
+# ------------------------------------------------------------------------------
+# Service configuration
+# ------------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8080
+
+# ------------------------------------------------------------------------------
+# Resource management
+# ------------------------------------------------------------------------------
+# CPU and memory requests and limits for the container.
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# ------------------------------------------------------------------------------
+# Health probes
+# ------------------------------------------------------------------------------
+# Liveness probe used to determine when the container should be restarted.
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  initialDelaySeconds: 120
+  periodSeconds: 5
+  failureThreshold: 10
+
+# Readiness probe used to determine when the container is ready to receive traffic.
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  initialDelaySeconds: 120
+  periodSeconds: 5
+  failureThreshold: 10
+
+# ------------------------------------------------------------------------------
+# Horizontal Pod Autoscaling
+# ------------------------------------------------------------------------------
+autoscaling:
+  # Enable or disable HorizontalPodAutoscaler.
+  enabled: true
+
+  minReplicas: 1
+  maxReplicas: 1
+
+  # Target average CPU utilization percentage.
+  targetCPUUtilizationPercentage: 80
+  # Uncomment to enable memory-based autoscaling in the HorizontalPodAutoscaler
+  # targetMemoryUtilizationPercentage: 80
+
+# ------------------------------------------------------------------------------
+# Volumes and mounts
+# ------------------------------------------------------------------------------
+# Additional volumes to be mounted into the pod.
+volumes:
+  # Spring Boot configuration mounted as /config/application.yml
+  - name: spring-config
+    configMap:
+      name: onboarding-spring-configmap
+
+# Additional volume mounts for the container.
+volumeMounts:
+  # Mount Spring Boot configuration.
+  - name: spring-config
+    mountPath: /config/
+
+# ------------------------------------------------------------------------------
+# Environment variables
+# ------------------------------------------------------------------------------
+# Environment variables injected from external ConfigMaps or Secrets.
+envFrom:
+  # Application environment variables (non-sensitive configuration).
+  - configMapRef:
+      name: onboarding-configmap
+
+# ------------------------------------------------------------------------------
+# Scheduling configuration
+# ------------------------------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ------------------------------------------------------------------------------
+# Database configuration
+# ------------------------------------------------------------------------------
+# Database configuration is mandatory and follows internal SIMPL conventions.
+db:
+  url: jdbc:postgresql://postgresql.{{ .Release.Namespace }}.svc.cluster.local:5432/onboarding
+  username: onboarding
+  password: onboarding
+
+# ------------------------------------------------------------------------------
+# Internal service endpoints
+# ------------------------------------------------------------------------------
+# Base URLs of internal microservices used by the application.
+# These services are expected to be reachable inside the Kubernetes cluster.
+microservices:
+  identityProviderUrl: http://identity-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+  usersRolesUrl: http://users-roles.{{ .Release.Namespace }}.svc.cluster.local:8080
+  securityAttributesProviderUrl: http://security-attributes-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+
+# ------------------------------------------------------------------------------
+# Spring Boot application configuration
+# ------------------------------------------------------------------------------
+# Optional Spring application configuration.
+# Rendered into /config/application.yml via a Kubernetes ConfigMap.
+#
+# This section is EMPTY by default.
+#
+# The commented configuration below is PROVIDED FOR REFERENCE ONLY and MUST NOT
+# be considered default or active configuration.
+#
+# To use it:
+# - uncomment the desired sections
+# - adapt values to the target environment
+# - ensure consistency with application configuration properties
+#
+appConfig: {}
+
+# ------------------------------------------------------------------------------
+# Example configuration (REFERENCE ONLY — UNCOMMENT TO USE)
+#
+# yaml configuration example based on Spring application.yml
+#
+# appConfig:
+#   scheduled-tasks:
+#     rejection-of-stale-onboarding-requests:
+#       cron: "*/5 * * * * *"
+#     evaluate-not-executed-validation-rules:
+#       cron: "*/5 * * * * *"
+#       rules-per-execution: 20
+#     evaluate-rule-execution-results:
+#       cron: "15,45 * * * * *"
+#       onboarding-request-per-execution: 20
+#     delete-rejected-onboarding-requests:
+#       cron: "*/5 * * * * *"
+#       retention-time: 10d
+#     handle-stuck-onboarding-requests:
+#       cron: "*/5 * * * * *"
+#       retention-time: 10m
+#
+#   management:
+#     tracing:
+#       sampling:
+#         probability: [MANAGEMENT_TRACING_SAMPLING_PROBABILITY]
+#     otlp:
+#       tracing:
+#         endpoint: [MANAGEMENT_OTLP_TRACING_ENDPOINT]
+#
+#   email-service:
+#     onboarding-request-url:
+#       applicant-url-template: https://fe.{{ .Release.Namespace }}.dev.simpl-europe.eu/onboarding/application/additional-request
+#       notary-url-template: https://fe.{{ .Release.Namespace }}.dev.simpl-europe.eu/onboarding/administration/{id}
+
+# ------------------------------------------------------------------------------
+# Kafka configuration
+# ------------------------------------------------------------------------------
+# Kafka is REQUIRED for full functionality (emails, domain events).
+#
+# There is no meaningful default configuration because:
+# - Kafka service names are environment-specific
+# - No internal convention exists (unlike database services)
+#
+# The placeholders below MUST be overridden in real deployments.
+kafkaConfig:
+  enabled: true
+  spring:
+    kafka:
+      bootstrap-servers: "<REPLACE_WITH_KAFKA_BOOTSTRAP_SERVERS>"
+      producer:
+        properties:
+          security.protocol: "<REPLACE_WITH_SECURITY_PROTOCOL>"
+          sasl.mechanism: "<REPLACE_WITH_SASL_MECHANISM>"
+          sasl.jaas.config: "<REPLACE_WITH_JAAS_CONFIG>"
+      admin:
+        auto-create: true
+  simpl:
+    kafka:
+      topic:
+        prefix: "<REPLACE_WITH_TOPIC_PREFIX>"
+
+# ------------------------------------------------------------------------------
+# Additional Spring configuration imports
+# ------------------------------------------------------------------------------
+# Path of additional configuration files to be imported by Spring.
+extraConfigImport: /config/kafka.yml
+
+# ------------------------------------------------------------------------------
+# Development settings
+# ------------------------------------------------------------------------------
+# Enables development-specific behavior (e.g. local logging configuration).
+# Should be set to false in production environments.
+devMode: false

@@ -1,0 +1,4 @@
+apiVersion: v2
+name: infrastructure-crossplane
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"

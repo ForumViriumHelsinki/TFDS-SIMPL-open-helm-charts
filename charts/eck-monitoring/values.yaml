@@ -1,0 +1,1040 @@
+creimage:
+  repository: "${CI_REGISTRY_IMAGE}"
+  pullPolicy: IfNotPresent
+  tag: "${PROJECT_RELEASE_VERSION}"
+
+
+
+# version of all elastic applications 
+elasticVersion: 9.1.4
+
+namespaceTag: "test-namespace"
+mainNamespace: "common01"
+agentType: "common"
+#test
+# This suffix will be used to create subdomain of following template:
+# kibana.NAMESPACE.NAMESPACE_TAG.DOMAIN_SUFFIX
+domainSuffix: "dev.simpl-europe.eu"
+
+#ClusterIssuer to generate Kibana SSL front certificate
+clusterIssuer: "dev-staging"
+clusterIssuer_internal: "dev-selfsigned"
+
+# Variable used to deploy minimal stack with minimal resourses
+deploy_minimal_stack: false
+
+elasticsearch:
+  image: docker.elastic.co/elasticsearch/elasticsearch
+  # Elasticsearch's image tag, by default it equals to elasticVersion
+  imageTag: ""
+  cert:
+    duration: 2160h0m0s # 90d
+    renewBefore: 360h0m0s # 15d  
+  #Usage from cli: 
+  # --set "elasticsearch.env[0].name=VARIABLE_NAME" --set "elasticsearch.env[0].value=VARIABLE_VALUE" 
+  env: []
+  name: node
+  count: 3
+  minimal_stack_count: 1
+  diskSpace: 60Gi
+  minimal_stack_diskSpace: 10Gi
+  storageClassName: csi-cinder-high-speed
+# NOTE: All values in resourses for memory must be set in Gi  
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 100m
+    limits:
+      memory: 4Gi
+      cpu: 1500m
+  minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 100m
+    limits:
+      memory: 4Gi
+      cpu: 1
+  resources_metricbeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+  resources_filebeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+
+
+kibana: 
+  count: 2
+  minimal_stack_count: 1
+  image: docker.elastic.co/kibana/kibana
+  #Branch name to donwload dashboards
+  dashboardsBranch: "main"
+  # Kibana's image tag, by default it equals to elasticVersion
+  imageTag: ""
+  # name of helm release where elasticsearch is installed. If you install kibana together with elasticsearch, leave it empty.
+  elasticsearchReleaseName: ""
+  cert:
+    duration: 2160h0m0s # 90d
+    renewBefore: 360h0m0s # 15d
+  # Additional kibana's config according to this link: https://www.elastic.co/guide/en/kibana/current/settings.html
+  config: 
+    xpack.reporting.roles.enabled: false
+# NOTE: All values in resourses for memory must be set in Gi
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 100m
+    limits:
+      memory: 4Gi
+      cpu: 1
+  minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  resources_metricbeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+  resources_filebeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+  #Environment variables to set in kibana pod 
+  #Usage from cli: 
+  # --set "kibana.env[0].name=VARIABLE_NAME" --set "kibana.env[0].value=VARIABLE_VALUE" 
+  env: []
+
+logstash:
+  ilm:
+    business:
+      hot:
+        max_age: 30d
+        max_primary_shard_size: 1gb
+      delete:
+        min_age: 365d
+    technical:
+      hot:
+        max_age: 30d
+        max_primary_shard_size: 1gb
+      delete:
+        min_age: 365d
+  minimal_stack_ilm:
+    business:
+      hot:
+        max_age: 3h
+        max_primary_shard_size: 100mb
+      delete:
+        min_age: 24h
+    technical:
+      hot:
+        max_age: 3h
+        max_primary_shard_size: 100mb
+      delete:
+        min_age: 24h
+
+  count_beats: 3
+  minimal_stack_count_beats: 1
+
+  count_syslog: 0
+  count_alerts: 1
+  image: docker.elastic.co/logstash/logstash
+  diskSpace: 3Gi
+  minimal_stack_diskSpace: 1Gi  
+  # name of StorageClass that will be used to create VolumeClaims. (StorageClass must exist)
+  storageClassName: csi-cinder-high-speed
+  imageTag: ""
+  env:
+# NOTE: All values in resourses for memory must be set in Gi
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 4Gi
+      cpu: 500m
+  minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 2Gi
+      cpu: 300m
+  resources_logstash_alerts:
+    requests:
+      memory: 100Mi
+      cpu: 100m
+    limits:
+      memory: 2Gi
+      cpu: 500m
+  resources_filebeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+  resources_metricbeat:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+  cert:
+    duration: 2160h0m0s # 90d
+    renewBefore: 360h0m0s # 15d
+  pipelines_yml_config: |-
+    - pipeline.id: main
+      path.config: "/app/elastic/logstash/config/pipelines/*.config"  
+      pipeline.workers: 1
+      pipeline.batch.size: 125
+  beats:
+    pipelines_group_name: "beats"
+    pipelines:
+    - name: "beats-pipeline"
+      input: |-
+        input {
+          beats {
+            port => 5044
+            ssl_enabled => true
+            ssl_certificate_authorities => ["/usr/share/logstash/certs-logstash/ca.crt"]
+            ssl_certificate => "/usr/share/logstash/certs-logstash/tls.crt"
+            ssl_key => "/usr/share/logstash/certs-logstash/tls.key"
+            ssl_client_authentication => "required"
+          }
+        }
+      filter: |-
+        filter {
+          ## removing ELK logs
+          if [kubernetes][container][name] in ["filebeat", "metricbeat", "logstash", "heartbeat", "kibana", "elasticsearch"] {
+            drop { }
+          }    
+          
+          # Technical logs 
+          if [kubernetes][container][name] in ["sd-creation-wizard-api", "signer", "sd-creation-wizard-api-validation", "edc-connector-adapter"] {
+            json {
+                    source => "message"
+                    skip_on_invalid_json => true
+                    add_field => { "log_type" => "technical" }
+                }
+          }
+          # Business logs
+          if [kubernetes][container][name] in  ["tier1-gateway", "tier2-gateway"] {
+            json {
+                    source => "message"
+                    skip_on_invalid_json => true
+                }
+
+            if [level] == "BUSINESS" {
+              mutate { add_field => { "log_type" => "business" } }
+              ruby {
+                code => '
+                    if event.get("[message]").is_a?(Hash)
+                        event.set("is_json_message", true)
+                    else
+                        event.set("is_json_message", false)
+                    end
+                  '
+                }
+              if [is_json_message] {
+                if [message][msg] { mutate { add_field => { "msg" => "%{[message][msg]}" } } }
+                if [message][messageType] { mutate { add_field => { "messageType" => "%{[message][messageType]}" } } }
+                if [message][businessOperations] { mutate { add_field => { "businessOperations" => "%{[message][businessOperations]}" } } }
+                if [message][origin] { mutate { add_field => { "origin" => "%{[message][origin]}" } } }
+                if [message][httpStatus] { mutate { add_field => { "httpStatus" => "%{[message][httpStatus]}" } } }
+                if [message][destination] { mutate { add_field => { "destination" => "%{[message][destination]}" } } }                
+                if [message][correlationId] { mutate { add_field => { "correlationId" => "%{[message][correlationId]}" } } }
+                if [message][user] { mutate { add_field => { "user" => "%{[message][user]}" } } }
+          
+                mutate { remove_field => [ "[message]" ] }
+                
+                }  
+              
+
+              }
+            else {
+              mutate { add_field => { "log_type" => "technical" } }
+            }
+
+
+
+          }
+
+          # Onboaring technical logs 
+          if [kubernetes][container][name] in ["users-roles", "identity-provider", "onboarding", 
+                                     "security-attributes-provider", "xsfc-advsearch-be", 
+                                     "contract-consumption-be-api", "authentication-provider", 
+                                     "contract-consumer", "contract-dataprovider"] {  
+            json {
+                    source => "message"
+                    skip_on_invalid_json => true
+                    add_field => { "log_type" => "technical" }
+                }
+                
+            ruby {
+                code => '
+                    if event.get("[message]").is_a?(Hash)
+                        event.set("is_json_message", true)
+                    else
+                        event.set("is_json_message", false)
+                    end
+                '
+            }
+            if [is_json_message] {
+              if [message][httpStatus] { mutate { add_field => { "httpStatus" => "%{[message][httpStatus]}" } } }
+              if [message][msg] { mutate { add_field => { "msg" => "%{[message][msg]}" } } }
+              if [message][httpRequestSize] { mutate { add_field => { "httpRequestSize" => "%{[message][httpRequestSize]}" } } }
+              if [message][user] { mutate { add_field => { "user" => "%{[message][user]}" } } }
+              if [message][httpExecutionTime] { mutate { add_field => { "httpExecutionTime" => "%{[message][httpExecutionTime]}" } } }
+              
+              mutate { remove_field => [ "[message]" ] }
+              
+            } 
+          }
+          # Not JSON logs
+          if [kubernetes][container][name] == "redis" {
+            grok {
+                match => { 
+                  "message" => [
+                      '%{TIMESTAMP_ISO8601:ts}%{SPACE}%{WORD:stream}%{SPACE}%{WORD:redis_type}%{SPACE}%{NUMBER:process_id}:%{WORD:process_type}%{SPACE}%{MONTHDAY:day}%{SPACE}%{MONTH:month}%{SPACE}%{YEAR:year}%{SPACE}%{TIME:time}\.%{INT:milliseconds}%{SPACE}\*%{SPACE}%{GREEDYDATA:message}'
+                    ]
+                  }
+                overwrite => [ "message" ]
+                add_field => {
+                  "timestamp" => "%{day} %{month} %{year} %{time}.%{milliseconds}"
+                  "log_type" => "technical"
+                }
+              }
+            date {
+                  match => [ "timestamp", "dd MMM yyyy HH:mm:ss.SSS"]
+                  target => "@timestamp"
+                }
+            mutate {
+                remove_field => ["timestamp"]
+            } 
+          }
+          if [kubernetes][container][name] == "keycloak" {
+            grok {
+              match => { 
+                "message" => [
+                  '%{TIMESTAMP_ISO8601:ts}%{SPACE}%{WORD:level}%{SPACE}\[%{JAVACLASS:logger}\]%{SPACE}\(%{DATA:thread}\)%{SPACE}%{GREEDYDATA:message}'
+                  ]
+              }
+              overwrite => [ "message" ]
+              add_field => { "log_type" => "technical" }
+            }
+            mutate {
+              gsub => [
+                "ts", ",", "."
+              ]
+            }
+            date {
+              match => [ "ts", "yyyy-MM-dd HH:mm:ss,SSS", "yyyy-MM-dd HH:mm:ss.SSS"]
+              target => "@timestamp"
+
+            } 
+          }
+          if [kubernetes][container][name] == "postgres" {
+            grok {
+              match => { 
+                "message" => [
+                    '%{TIMESTAMP_ISO8601:ts}%{SPACE}%{WORD:timezone}%{SPACE}\[%{NUMBER:pid}\]%{SPACE}%{WORD:level}:%{SPACE}%{GREEDYDATA:message}' 
+                  ]
+              }
+              overwrite => [ "message" ]
+              add_field => { "log_type" => "technical" }
+            }
+            date {
+              match => [ "ts", "yyyy-MM-dd HH:mm:ss.SSS"]
+              target => "@timestamp"
+
+            } 
+          }
+          if [kubernetes][container][name] == "simpl-edc-container" {
+             mutate {
+                gsub => ["message", "\x1B\[[0-9;]*[mK]", ""]
+              }
+            grok {
+              match => {
+                "message" => [
+                   "%{LOGLEVEL:level} %{TIMESTAMP_ISO8601:timestamp} %{GREEDYDATA:message}"
+                ]
+              }
+              overwrite => [ "message" ]
+              add_field => { "log_type" => "technical" }
+            }
+            date {
+              match => ["timestamp", "ISO8601"]
+              target => "@timestamp"
+            }
+          }
+          if [kubernetes][container][name] == "kafka" {
+            grok {
+              match => {
+                "message" => [
+                  "^\[%{LOGLEVEL:level}\]\s+%{TIMESTAMP_ISO8601:ls}\s+\[%{DATA:thread}\]\s+%{JAVACLASS:logger}\s+%{GREEDYDATA:message}"
+                ]
+              }
+              overwrite => [ "message" ]
+              add_field => { "log_type" => "technical" }
+            }
+            date {
+              match => ["ts", "ISO8601"]
+              target => "@timestamp"
+            }
+          }
+          
+          if [kubernetes][container][name] == "signer" {
+            date {
+              match => [ "ts", "yyyy-MM-dd HH:mm:ss.SSS", "ISO8601", "yyyy-MM-dd HH:mm:ss", "dd MMM yyyy HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss,SSS"]
+              target => "@timestamp"
+            } 
+          }
+          else {
+            date {
+              match => [ "timestamp", "yyyy-MM-dd HH:mm:ss.SSS", "ISO8601", "yyyy-MM-dd HH:mm:ss", "dd MMM yyyy HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss,SSS" ]
+              target => "@timestamp"
+            }
+          }
+          # Keep only specified fields
+          mutate {
+            remove_field => [
+              "agent",
+              "input",
+              "is_json_message",
+              "host",           
+              "log",
+              "container.id",
+              "container.runtime",
+              "timestamp",
+              "stream",
+              "[kubernetes][replicaset]",
+              "[kubernetes][labels]",
+              "[kubernetes][namespace_uid]",
+              "[kubernetes][pod][uid]",
+              "[kubernetes][pod][ip]",
+              "[kubernetes][namespace_labels]",
+              "[kubernetes][node]"
+            ]
+          }
+        }
+      output: |-
+        output {
+          if [log_type] == "business" {
+            elasticsearch {
+              hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+              user => "${LOGSTASH_USER}"
+              password => "${LOGSTASH_PASSWORD}"
+              ssl_enabled => "true"
+              ssl_verification_mode => "full"
+              ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
+              index => "business-logs"
+              template_name => "business-template"
+              action => "create"
+            }
+          }
+          else if [log_type] == "technical" {
+            elasticsearch {
+              hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+              user => "${LOGSTASH_USER}"
+              password => "${LOGSTASH_PASSWORD}"
+              ssl_enabled => "true"
+              ssl_verification_mode => "full"
+              ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
+              index => "technical-logs"
+              template_name => "technical-template"
+              action => "create"            
+            }
+          }
+          #stdout { 
+          #  codec => json
+          #}
+        }
+  syslog:
+    pipelines_group_name: "syslog"
+    pipelines:
+    - name: "syslog-pipeline"
+      input: |-
+        input {
+          syslog {
+            port => 514
+          }
+        }
+      filter: |-
+        filter {
+        }
+
+      output: |-
+        output {
+          elasticsearch {
+            hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+            index => "%{[@metadata][beat]}-%{[@metadata][version]}"
+            user => "${LOGSTASH_USER}"
+            password => "${LOGSTASH_PASSWORD}"
+            ssl_enabled => "true"
+            ssl_verification_mode => "full"
+            ssl_certificate_authorities => "${ELASTIC_ELASTICSEARCH_ES_SSL_CERTIFICATE_AUTHORITY}"
+          }
+          stdout { 
+            codec => rubydebug
+          }
+        }
+  single: 
+    enableMonitoring: false
+    kafka:
+      security_protocol: "PLAINTEXT"
+    pipelines:
+    - name: "alerts-pipeline"
+      pipelines_group_name: "alerts"
+      topic_id: "notifications"
+      email_receiver: "test@atos.net"
+      input: |-
+        input {
+          elasticsearch {
+            hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+            user => "${LOGSTASH_USER}"
+            password => "${LOGSTASH_PASSWORD}"
+            ssl_enabled => "true"
+            ssl_verification_mode => "full"
+            ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
+            index => "alerts-resources"
+            query => '{ "query": { "range": { "@timestamp": { "gte": "now-15m" } } } }'
+            schedule => "*/15 * * * *"             
+          }
+        }
+      filter: |-
+        filter {
+          if [ruleName] in ["JVM Memory Pressure Rule", "Node Availability Rule", "Unassigned Shards Rule", "CPU Usage Rule"] {
+            ruby {
+              code => '
+                require "json"
+                # Helper function to replace JSON object with its "value" field
+                def replace_host_json(text)
+                  return text unless text
+                  text.gsub(/(\{.*?"field".*?"value".*?\})/) do |match|
+                    begin
+                      obj = JSON.parse(match)
+                      obj["value"] || match
+                    rescue JSON::ParserError
+                      match
+                    end
+                  end
+                end
+                subject = event.get("subject")
+                if subject
+                  new_subject = replace_host_json(subject)
+                  event.set("subject", new_subject)
+                end
+                message = event.get("message")
+                if message
+                  new_message = replace_host_json(message)
+                  event.set("message", new_message)
+                end
+              '
+            }
+          }
+          if [ruleName] == "Indexing Rate Drop Rule" {
+              grok {
+                match => { "subject" => "\- %{NUMBER:index_rate:float} events/s" }
+              }
+              ruby {
+                code => "
+                  if event.get('index_rate')
+                    rounded = event.get('index_rate').to_i
+                    subject = event.get('subject').gsub(/- \d+(\.\d+)? events\/s/, '- ' + rounded.to_s + ' events/s')
+                    event.set('subject', subject)
+                  end
+                "
+              }
+              grok {
+                match => { "message" => "Indexing Rate: %{NUMBER:msg_rate:float} events/s" }
+              }
+              ruby {
+                code => "
+                  if event.get('msg_rate')
+                    rounded_msg = event.get('msg_rate').to_i
+                    message = event.get('message').gsub(/Indexing Rate: \d+(\.\d+)? events\/s/, 'Indexing Rate: ' + rounded_msg.to_s + ' events/s')
+                    event.set('message', message)
+                  end
+                "
+              }
+          }
+          else if [ruleName] == "CPU Usage Rule" {
+              grok {
+                match => { "subject" => ".*? - %{NUMBER:cpu_rate:float}%" }
+              }
+              ruby {
+                code => "
+                  if event.get('cpu_rate')
+                    rounded = event.get('cpu_rate').to_i
+                    subject = event.get('subject').gsub(/- \d+(\.\d+)?%/, '- ' + rounded.to_s + '%')
+                    event.set('subject', subject)
+                  end
+                "
+              }
+              grok {
+                match => { "message" => ".*?CPU Usage: %{NUMBER:msg_cpu_rate:float}%" }
+              }
+              ruby {
+                code => "
+                  if event.get('msg_cpu_rate')
+                    rounded_msg = event.get('msg_cpu_rate').to_i
+                    message = event.get('message').gsub(/CPU Usage: \d+(\.\d+)?%/, 'CPU Usage: ' + rounded_msg.to_s + '%')
+                    event.set('message', message)
+                  end
+                "
+              }
+          }
+          else if [ruleName] == "Search Rate Drop Rule" {
+              grok {
+                match => { "subject" => ".*? - %{NUMBER:search_rate:float}" }
+              }
+              ruby {
+                code => "
+                  if event.get('search_rate')
+                    rounded = event.get('search_rate').to_i
+                    subject = event.get('subject').gsub(/- \d+(\.\d+)?%/, '- ' + rounded.to_s + '%')
+                    event.set('subject', subject)
+                  end
+                "
+              }
+              grok {
+                match => { "message" => ".*?Search Rate: %{NUMBER:msg_search_rate:float}" }
+              }
+              ruby {
+                code => "
+                  if event.get('msg_search_rate')
+                    rounded_msg = event.get('msg_search_rate').to_i
+                    message = event.get('message').gsub(/Search Rate: \d+(\.\d+)?/, 'Search Rate: ' + rounded_msg.to_s)
+                    event.set('message', message)
+                  end
+                "
+              }
+          }
+          mutate {
+            add_field => { "channel" => "email" }
+            add_field => { "to" => "${LOGSTASH_ALERTS_EMAIL_RECEIVER}" }
+            remove_field => [ "@timestamp", "ruleName" ]
+          }
+        }
+      output: |-
+        output {
+          kafka {
+            bootstrap_servers => "${LOGSTASH_KAFKA_BOOTSTRAP_SERVERS}"
+            security_protocol => "${LOGSTASH_KAFKA_SECURITY_PROTOCOL}"
+            topic_id => "${LOGSTASH_ALERTS_KAFKA_TOPIC_ID}"
+            codec => json
+          }
+        }
+    - name: "infrastructure-pipeline"
+      pipelines_group_name: "infrastructure"
+      topic_id: "simpl-infra-consumption-data"
+      input: |-
+        input {
+          kafka {
+            bootstrap_servers => "${LOGSTASH_KAFKA_BOOTSTRAP_SERVERS}"
+            security_protocol => "${LOGSTASH_KAFKA_SECURITY_PROTOCOL}"
+            topics => ["${LOGSTASH_INFRASTRUCTURE_KAFKA_TOPIC_ID}"]
+            codec => json
+          }
+        } 
+      filter: |-
+        filter {
+          mutate {
+            gsub => [
+              "[metadata][timestamp]", "[\u202F\u00A0]", " ",
+              "[lastUpdate]", "[\u202F\u00A0]", " ",
+              "[period][from]", "[\u202F\u00A0]", " ",
+              "[period][to]", "[\u202F\u00A0]", " "
+            ]
+          }
+          date {
+              match => [ "[metadata][timestamp]", "MMM d, yyyy, h:mm:ss a", "MMM dd, yyyy, h:mm:ss a" ]
+              target => "@timestamp"
+              timezone => "UTC"
+          }          
+          date {
+            match => [ "lastUpdate", "MMM d, yyyy, h:mm:ss a", "MMM dd, yyyy, h:mm:ss a" ]
+            target => "lastUpdate"
+            timezone => "UTC"
+          }
+          date {
+            match => [ "[period][from]", "MMM d, yyyy, h:mm:ss a", "MMM dd, yyyy, h:mm:ss a" ]
+            target => "[period][from]"
+            timezone => "UTC"
+          }
+          date {
+            match => [ "[period][to]", "MMM d, yyyy, h:mm:ss a", "MMM dd, yyyy, h:mm:ss a" ]
+            target => "[period][to]"
+            timezone => "UTC"
+          }
+
+          if [metadata][additionalInfo] == "Hourly Usage Volume" {
+            split {
+              field => "[hourlyUsage][volume]"
+            }  
+            split {
+              field => "[hourlyUsage][volume][details]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Monthly Usage Volume" {
+            split {
+              field => "[monthlyUsage][volume]"
+            }  
+            split {
+              field => "[monthlyUsage][volume][details]"
+            }  
+          }
+          else if [metadata][additionalInfo] == "Hourly Usage Instance" {
+            split {
+              field => "[hourlyUsage][instance]"
+            }
+            split {
+              field => "[hourlyUsage][instance][details]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Monthly Usage Instance" {
+            split {
+              field => "[monthlyUsage][instance]"
+            }
+            split {
+              field => "[monthlyUsage][instance][details]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Hourly Usage Snapshot" {
+            split {
+              field => "[hourlyUsage][snapshot]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Monthly Usage Snapshot" {
+            split {
+              field => "[monthlyUsage][snapshot]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Hourly Usage Storage" {
+            split {
+              field => "[hourlyUsage][storage]"
+            }
+          }
+          else if [metadata][additionalInfo] == "Monthly Usage Storage" {
+            split {
+              field => "[monthlyUsage][storage]"
+            }
+          }
+          if [metadata][additionalInfo] == "Monthly Usage Savings Plan" {
+            split {
+              field => "[monthlyUsage][savingsPlan]"
+            }
+            split {
+              field => "[monthlyUsage][savingsPlan][details]"
+            }
+          }
+          if [metadata][additionalInfo] == "Resources Usage" { 
+            split {
+              field => "[resourcesUsage]"
+            }
+            split {
+              field => "[resourcesUsage][resources]"
+            }
+            split {
+              field => "[resourcesUsage][resources][components]"
+            }
+          }     
+        }
+      output: |-
+        output {
+          elasticsearch {
+            hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+            user => "${LOGSTASH_USER}"
+            password => "${LOGSTASH_PASSWORD}"
+            ssl_enabled => "true"
+            ssl_verification_mode => "full"
+            ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
+            index => "infrastructure-reports"
+            action => "create"            
+          }
+        }
+
+filebeat:
+  image: docker.elastic.co/beats/filebeat
+  imageTag: ""
+# NOTE: All values in resourses for memory must be set in Gi        
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 10m
+    limits:
+      memory: 1Gi
+      cpu: 100m
+  ilm:
+    hot:
+      max_age: 7d
+      max_primary_shard_size: 1gb
+    delete:
+      min_age: 14d
+  minimal_stack_ilm:
+    hot:
+      max_age: 3h
+      max_primary_shard_size: 100mb
+    delete:
+      min_age: 24h
+
+
+  cert:
+    duration: 2160h0m0s # 90d
+    renewBefore: 360h0m0s # 15d
+  input: |
+    filebeat.autodiscover:
+      providers:
+        - type: kubernetes
+          # Filter logs only from the monitored namespace
+          namespace: "${MONITORED_NAMESPACE}"
+          templates:
+            # Condition for redis container in the monitored namespace
+            - condition.equals.kubernetes.container.name: "redis"
+              config:
+                - type: filestream
+                  id: redis-logs-${data.kubernetes.container.id}
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  parsers:
+                    - container:
+                        stream: stdout
+                    - multiline:
+                        type: pattern
+                        pattern: '^\d+:\w+\s+\d{2}\s+\w{3}\s+\d{4}'
+                        negate: true
+                        match: after
+                  prospector:
+                    scanner:
+                      fingerprint.enabled: true
+                      symlinks: true
+                  file_identity.fingerprint: ~
+            # Condition for json structured logs
+            - condition:
+                or:
+                  # Business logs
+                  - equals:
+                      kubernetes.container.name: "tier1-gateway"
+                  - equals:
+                      kubernetes.container.name: "tier2-gateway"
+                  # Onboarding technical logs containers
+                  - equals:
+                      kubernetes.container.name: "identity-provider"
+                  - equals:
+                      kubernetes.container.name: "onboarding"
+                  - equals:
+                      kubernetes.container.name: "security-attributes-provider"
+                  - equals:
+                      kubernetes.container.name: "users-roles"
+                  - equals:
+                      kubernetes.container.name: "edc-connector-adapter"
+                  # Logs not specified yet
+                  - equals:
+                      kubernetes.container.name: "signer"
+                  - equals:
+                      kubernetes.container.name: "sd-creation-wizard-api"
+                  - equals:
+                      kubernetes.container.name: "sd-creation-wizard-api-validation"
+                  - equals: 
+                      kubernetes.container.name: "xsfc-advsearch-be"
+                  - equals:
+                      kubernetes.container.name: "contract-consumption-be-api"
+                  - equals:
+                      kubernetes.container.name: "authentication-provider"
+                  - equals:
+                      kubernetes.container.name: "contract-consumer"
+                  - equals:
+                      kubernetes.container.name: "contract-dataprovider"
+              config:
+                - type: filestream
+                  id: json-structured-logs-${data.kubernetes.container.id}
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  parsers:
+                    - container:
+                        stream: all
+                  prospector:
+                    scanner:
+                      fingerprint.enabled: true
+                      fingerprint.length: 512
+                      fingerprint.offset: 0
+                      symlinks: true
+                  file_identity.fingerprint: ~
+            - condition:
+                or:
+                  # External apps logs
+                  - equals:
+                      kubernetes.container.name: "keycloak"
+                  - equals:
+                      kubernetes.container.name: "postgres"
+              config:
+                - type: filestream
+                  id: external-apps-logs-${data.kubernetes.container.id}
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  parsers:
+                    - container:
+                        stream: stdout
+                    - multiline:
+                        type: pattern
+                        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                        negate: true
+                        match: after
+                  prospector:
+                    scanner:
+                      fingerprint.enabled: true
+                      symlinks: true
+                  file_identity.fingerprint: ~
+            # EDC container logs
+            - condition.equals.kubernetes.container.name: "simpl-edc-container"
+              config:
+                - type: filestream
+                  id: edc-logs-${data.kubernetes.container.id}
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  parsers:
+                    - container:
+                        stream: stdout
+                    - multiline:
+                        type: pattern
+                        pattern: '^\x1B\[[0-9;]*[mK]*(DEBUG|INFO|WARNING|ERROR|SEVERE)'
+                        negate: true
+                        match: after
+                  prospector:
+                    scanner:
+                      fingerprint.enabled: true
+                      symlinks: true
+                  file_identity.fingerprint: ~
+            - condition.equals.kubernetes.container.name: "kafka"
+              config:
+                - type: filestream
+                  id: kafka-logs-${data.kubernetes.container.id}
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  parsers:
+                    - container:
+                        stream: stdout
+                    - multiline:
+                        type: pattern
+                        pattern: '^\[[A-Z]+\]\s+[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                        negate: true
+                        match: after
+                  prospector:
+                    scanner:
+                      fingerprint.enabled: true
+                      symlinks: true
+                  file_identity.fingerprint: ~
+    
+  output: |
+    output.logstash:
+      hosts: ["${LOGSTASH_HOSTS}"]
+      ssl.enabled: true
+      ssl.certificate_authorities: ["/usr/share/filebeat/certs/ca.crt"]
+      ssl.verification_mode: full
+      ssl.certificate: "/usr/share/filebeat/certs/tls.crt"
+      ssl.key: "/usr/share/filebeat/certs/tls.key"
+    #output.console:
+    #  pretty: true  
+
+metricbeat:
+  ilm:
+    hot:
+      max_age: 7d
+      max_primary_shard_size: 1gb
+    delete:
+      min_age: 14d
+  minimal_stack_ilm:
+    hot:
+      max_age: 3h
+      max_primary_shard_size: 100mb
+    delete:
+      min_age: 24h
+# NOTE: All values in resourses for memory must be set in Gi      
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+# Hostname to receive status_pod metrics
+  kubeStateHost: kube-state-metrics.kube-state-metrics.svc.cluster.local:8080
+
+heartbeat:
+  ilm:
+    hot:
+      max_age: 7d
+      max_primary_shard_size: 1gb
+    delete:
+      min_age: 14d
+  minimal_stack_ilm:
+    hot:
+      max_age: 3h
+      max_primary_shard_size: 100mb
+    delete:
+      min_age: 24h
+# NOTE: All values in resourses for memory must be set in Gi      
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+
+apmServer:
+  count: 2
+  minimal_stack_count: 1
+  image: docker.elastic.co/apm/apm-server
+  imageTag: ""
+# NOTE: All values in resourses for memory must be set in Gi  
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+
+otel_collector:
+  count: 2
+  minimal_stack_count: 1
+# NOTE: All values in resourses for memory must be set in Gi  
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m

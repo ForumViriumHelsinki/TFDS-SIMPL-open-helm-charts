@@ -18,4 +18,55 @@ In accordance with EUPL v1.2, the following modifications have been made to the 
 *Please refer to the `CHANGELOG.md` inside each chart directory for detailed, chart-specific modifications.*
 
 ## Structure
-Each directory in this repository represents an independent Helm chart.
+The repository utilizes a standard Helm monorepo pattern. All microservice charts are located in the unified `/charts` directory.
+
+```
+.
+├── CHANGELOG.md
+├── INCLUDED_MICROSERVICES.md
+├── LICENSE
+├── README.md
+├── scripts/
+│   └── update_microservices.sh
+└── charts/
+    ├── authentication-provider/
+    ├── catalogue-ui/
+    ├── contract-consumption-be/
+    ├── dagster/
+    ├── eck-monitoring/
+    ├── edc/
+    ├── edc-connector-adapter/
+    ├── fc-service/
+    ├── fe-authentication-provider/
+    ├── fe-identity-provider/
+    ├── fe-onboarding/
+    ├── fe-security-attribute-provider/
+    ├── fe-users-and-roles/
+    ├── frontend/
+    ├── identity-provider/
+    ├── infrastructure-be/
+    ├── infrastructure-consumption-monitoring-service/
+    ├── infrastructure-crossplane/
+    ├── kafka/
+    ├── onboarding/
+    ├── openbao-config/
+    ├── openbao-init/
+    ├── poc-charts/
+    ├── postgres-cluster/
+    ├── schema-manager-ui/
+    ├── sd-creation-wizard/
+    ├── sd-ui/
+    ├── security-attributes-provider/
+    ├── signer/
+    ├── simpl-contract/
+    ├── simpl-files/
+    ├── simpl-notification-service/
+    ├── simpl-schema-manager-charts/
+    ├── simpl-stubs/
+    ├── tier1-gateway/
+    ├── tier2-gateway/
+    ├── tier2-proxy/
+    ├── users-roles/
+    ├── vault-webhook/
+    └── xfsc-advsearch/
+```

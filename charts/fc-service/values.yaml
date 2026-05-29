@@ -1,0 +1,189 @@
+# Default values for fc-service.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+name: fc-service
+replicaCount: 1
+
+image:
+  repository: "${CI_REGISTRY_IMAGE}"
+  pullPolicy: Always
+  tag: "${PROJECT_RELEASE_VERSION}"
+
+#imagePullSecrets: []
+#nameOverride: ""
+fullnameOverride: "fc-service"
+
+secretEngine: kv/gaia-x
+secretConfigPath: "{{ .Values.secretEngine }}/{{ .Release.Namespace }}-fc-service"
+
+serviceAccount:
+  enabled: true
+
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  # fsGroup: 2000
+
+securityContext: {}
+#  # capabilities:
+#  #   drop:
+#  #   - ALL
+#  # readOnlyRootFilesystem: true
+#  # runAsNonRoot: true
+#  # runAsUser: 1000
+
+hashicorp:
+  role: "gaiax"
+  service: "https://vault.tools.simpl-europe.eu/"
+
+service:
+  type: ClusterIP
+  port: 8081
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # kubernetes.io/tls-acme: "true"
+    kubernetes.io/ingress.allow-http: "true"
+    cert-manager.io/cluster-issuer: "dev-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false" #true"
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    #    nginx.ingress.kubernetes.io/server-snippet: |
+    #        location /actuator {
+    #          deny all;
+    #          return 403;
+    #        }
+    acme.cert-manager.io/http01-edit-in-place: "true"
+  #    kubernetes.io/ingress.class: nginx
+  hosts:
+    - host: fc-server.dev.simpl-europe.eu
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: fc-server-tls
+      hosts:
+        - fc-server.dev.simpl-europe.eu
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+    cpu: 250m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 2Gi
+
+probes:
+  path: /actuator/health
+  initialDelaySeconds: 60
+  periodSeconds: 30
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - fc-service
+          topologyKey: "kubernetes.io/hostname"
+
+restartPolicy: Always
+
+storage:
+  enabled: false
+  size: 2Gi
+  path: /mnt/data/postgresql
+
+postgresql:
+  enabled: true
+  fullnameOverride: fc-postgres
+  nameOverride: fc-postgres
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: "15.0.0"
+  auth:
+    postgresPassword: postgres
+  primary:
+    containerSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    persistence:
+      enabled: true
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 250m
+      requests:
+        memory: 128Mi
+        cpu: 100m
+
+neo4j:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+
+  fullnameOverride: fc-neo4j
+  neo4j:
+    name: fc-neo4j-db
+    password: "neo12345"
+  #    passwordFromSecret: fc-neo4j-secret
+  volumes:
+    data:
+      mode: defaultStorageClass
+  env:
+    #    NEO4J_AUTH: neo4j/neo12345
+    NEO4J_PLUGINS: '["apoc", "graph-data-science", "n10s"]'
+  additionalVolumes:
+    - name: fc-neo4j-data
+      emptyDir: {}
+  additionalVolumeMounts:
+    - name: fc-neo4j-data
+      mountPath: "/var/lib/neo4j/plugins"
+  config:
+    dbms.security.procedures.unrestricted: gds.*,apoc.*,n10s.*,semantics.*
+    dbms.security.procedures.allowlist: gds.*,apoc.*,n10s.*,semantics.*
+  initContainers:
+    - name: init-plugins
+      image: appropriate/curl:latest
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: fc-neo4j-data
+          mountPath: /var/lib/neo4j/plugins
+      securityContext:
+        allowPrivilegeEscalation: false
+      command:
+        - "/bin/sh"
+        - "-c"
+        - |
+          curl -L https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/5.5.0/apoc-5.5.0-extended.jar -O
+          curl -L https://github.com/neo4j-labs/neosemantics/releases/download/5.5.0.0/neosemantics-5.5.0.0.jar -O
+          curl -L https://graphdatascience.ninja/neo4j-graph-data-science-2.3.5.jar -O
+          cp -R apoc-5.5.0-extended.jar /var/lib/neo4j/plugins
+          cp -R neosemantics-5.5.0.0.jar /var/lib/neo4j/plugins
+          cp -R neo4j-graph-data-science-2.3.5.jar /var/lib/neo4j/plugins
+  resources:
+    cpu: "500m"
+    memory: "2Gi"

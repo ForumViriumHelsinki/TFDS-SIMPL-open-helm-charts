@@ -1,0 +1,7 @@
+apiVersion: v1
+name: simpl-files
+description: Web Server Storage Files
+
+appVersion: ${PROJECT_RELEASE_VERSION}
+
+version: ${PROJECT_RELEASE_VERSION}

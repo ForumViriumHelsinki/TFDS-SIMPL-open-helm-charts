@@ -1,0 +1,34 @@
+cluster:
+  namespace: common
+
+namespaceTag: common
+
+image:
+  repository: hashicorp/vault
+  tag: 1.20.0
+
+replicasCount: 3
+
+agentList: {}
+
+kafkaCredentials: {}
+#  infrabe: infrabe
+#  user1: password1
+
+hashicorp:
+  service: "http://vaultservice.vaultns.svc.cluster.local:8200"
+  role: "accessrole_name"
+  secretEngine: name
+
+domainSuffix: int.simpl-europe.eu
+
+mailpit:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 400m
+    memory: 400Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi

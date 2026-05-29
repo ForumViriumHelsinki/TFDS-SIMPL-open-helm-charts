@@ -1,0 +1,5 @@
+apiVersion: v2
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"
+name: simpl-stubs
+description: Simpl Stubs helm chart

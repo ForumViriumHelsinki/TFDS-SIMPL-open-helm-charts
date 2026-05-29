@@ -1,0 +1,263 @@
+{{- if eq .Values.namespaceTag .Values.mainNamespace }}
+apiVersion: beat.k8s.elastic.co/v1beta1
+kind: Beat
+metadata:
+  name: metricbeat
+spec:
+  type: metricbeat
+  version: {{ .Values.elasticVersion }}
+  elasticsearchRef:
+    name: {{ .Release.Name }}-elasticsearch
+  monitoring:
+    logs:
+      elasticsearchRefs:
+        - name: {{ .Release.Name }}-elasticsearch
+    metrics:
+      elasticsearchRefs:
+        - name: {{ .Release.Name }}-elasticsearch
+  config:
+    metricbeat:
+      autodiscover:
+        providers:
+        - hints:
+            default_config: {}
+            enabled: "true"
+          node: ${NODE_NAME}
+          type: kubernetes
+      modules:
+      - module: system
+        period: 10s
+        metricsets:
+        - cpu
+        - load
+        - memory
+        - diskio
+        - network
+        - process
+        - process_summary
+        process:
+          include_top_n:
+            by_cpu: 5
+            by_memory: 5
+        processes:
+        - .*
+      - module: system
+        period: 1m
+        metricsets:
+        - filesystem
+        - fsstat
+        processors:
+        - drop_event:
+            when:
+              regexp:
+                system:
+                  filesystem:
+                    mount_point: ^/(sys|cgroup|proc|dev|etc|host|lib)($|/)
+      - module: kubernetes
+        period: 10s
+        node: ${NODE_NAME}
+        hosts:
+        - https://${NODE_NAME}:10250
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        ssl:
+          verification_mode: none
+        metricsets:
+        - node
+        - system
+        - pod
+        - container
+        - volume
+      - add_metadata: true
+        enabled: true
+        hosts:
+          - {{ .Values.metricbeat.kubeStateHost }} 
+        metricsets:
+          - state_pod
+        module: kubernetes
+        ssl:
+          verification_mode: none
+    setup.ilm.enabled: true
+    setup.ilm.policy_name: metricbeat-ilm
+    setup.ilm.overwrite: true
+    setup.ilm.policy_file: "/usr/share/metricbeat/ilm/metricbeat-ilm.json"
+    processors:
+    - add_cloud_metadata: {}
+    - add_host_metadata: {}
+    - drop_event:
+        when:
+          not:
+            or:
+              - equals:
+                  kubernetes.namespace: {{ .Release.Namespace }}
+              - equals:
+                  service.type: system
+  daemonSet:
+    podTemplate:
+      spec:
+        serviceAccountName: metricbeat
+        automountServiceAccountToken: true # some older Beat versions are depending on this settings presence in k8s context
+        containers:
+        - args:
+          - -e
+          - -c
+          - /etc/beat.yml
+          - --system.hostfs=/hostfs
+          name: metricbeat
+          {{- with .Values.metricbeat.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}      
+          volumeMounts:
+          - mountPath: /hostfs/sys/fs/cgroup
+            name: cgroup
+          - mountPath: /var/run/docker.sock
+            name: dockersock
+          - mountPath: /hostfs/proc
+            name: proc
+          - mountPath: /usr/share/metricbeat/ilm/metricbeat-ilm.json
+            name:  metricbeat-ilm-vol
+            subPath: metricbeat-ilm.json            
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        dnsPolicy: ClusterFirstWithHostNet
+        hostNetwork: true # Allows to provide richer host metadata
+        securityContext:
+          runAsUser: 0
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - hostPath:
+            path: /sys/fs/cgroup
+          name: cgroup
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersock
+        - hostPath:
+            path: /proc
+          name: proc
+        - name: metricbeat-ilm-vol
+          configMap:
+            name: metricbeat-ilm-configmap
+            defaultMode: 511    
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: metricbeat-{{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - namespaces
+  - events
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "extensions"
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  - deployments
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/stats
+  verbs:
+  - get
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metricbeat
+  namespace: {{.Release.Namespace}} 
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metricbeat-{{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: metricbeat
+  namespace: {{.Release.Namespace}} 
+roleRef:
+  kind: ClusterRole
+  name: metricbeat-{{ .Release.Namespace }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metricbeat-ilm-configmap
+data: 
+  metricbeat-ilm.json: |
+    {
+      "policy": {
+        "phases": {
+        {{- if eq .Values.deploy_minimal_stack true }}
+
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_age": "{{ .Values.metricbeat.minimal_stack_ilm.hot.max_age }}",
+                "max_primary_shard_size": "{{ .Values.metricbeat.minimal_stack_ilm.hot.max_primary_shard_size }}"
+              },
+              "set_priority": {
+                "priority": 100
+              }
+            },
+            "min_age": "0ms"
+          },
+          "delete": {
+            "min_age":  "{{ .Values.metricbeat.minimal_stack_ilm.delete.min_age }}",
+            "actions": {
+              "delete": {}
+            }
+          }
+        }
+        {{- else }}
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_age": "{{ .Values.metricbeat.ilm.hot.max_age }}",
+                "max_primary_shard_size": "{{ .Values.metricbeat.ilm.hot.max_primary_shard_size }}"
+              },
+              "set_priority": {
+                "priority": 100
+              }
+            },
+            "min_age": "0ms"
+          },
+          "delete": {
+            "min_age":  "{{ .Values.metricbeat.ilm.delete.min_age }}",
+            "actions": {
+              "delete": {}
+            }
+          }
+        }
+        {{- end }}
+      }
+    }
+---
+{{- end }}

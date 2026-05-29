@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+  labels:
+    app: {{ .Values.deployment.label }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.deployment.label }}
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .Values.hashicorp.role }}
+        {{- if and (hasKey .Values "hashicorp") (hasKey .Values.hashicorp "service") }}
+        vault.hashicorp.com/service: {{ .Values.hashicorp.service }}
+        {{- end }}
+        vault.hashicorp.com/agent-inject-secret-config.txt: "{{ tpl .Values.secretConfigPath . }}"
+        vault.hashicorp.com/agent-inject-template-config.txt: |
+          {{- $secretPath := tpl .Values.secretConfigPath . -}}
+          {{- $template := printf (printf "{{`{{ with secret \"%s\" }}\n" $secretPath) -}}
+          {{- $template = printf "%s{{ range $k, $v := .Data.data }}\n" $template -}}
+          {{- $template = printf "%s  export {{ $k }}={{ $v }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}\n" $template -}}
+          {{- $template = printf "%s{{ end }}`}}" $template -}}
+          {{- tpl $template . | nindent 10 }}
+      labels:
+        app: {{ .Values.deployment.label }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Namespace }}
+      containers:
+        - name: poc-backend
+#          image: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/poc-gaia-edc/simpl-backend:latest
+          image: {{ .Values.REPOSITORY }}:{{ .Values.TAG}}
+          command: [ "/bin/sh" ]
+          args: [ "-c", "source /vault/secrets/config.txt && java -jar /poc-0.0.1-SNAPSHOT.jar" ]
+          imagePullPolicy: {{ .Values.DEPLOYMENT_IMAGE_PULL_POLICY }}
+          ports:
+            - containerPort: {{ .Values.CONTAINER_PORT }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

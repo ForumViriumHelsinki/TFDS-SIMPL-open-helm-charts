@@ -1,0 +1,6 @@
+apiVersion: v2
+name: simpl-notification-service
+description: Simpl Notification Service helm chart
+type: application
+version: ${PROJECT_RELEASE_VERSION}
+appVersion: "${PROJECT_RELEASE_VERSION}"

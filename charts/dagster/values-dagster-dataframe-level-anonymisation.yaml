@@ -1,0 +1,68 @@
+dagster:
+  # ===========================================================================
+  # USER CODE DEPLOYMENTS - TEST ENVIRONMENT
+  # ===========================================================================
+  # Configuration for deploying user-defined Dagster code locations
+  # Test environment setup with reduced resources for development and testing
+  # MANAGED BY GITLAB CI/CD - DO NOT CHANGE MANUALLY
+  dagster-user-deployments:
+    deployments:
+      - name: dataframe-level-anonymisation
+        location_name: dataframe-level-anonymisation
+        enabled: true
+        enableSubchart: true
+
+        # Code server configuration - defines how the Dagster code server starts
+        # Specifies the entry point for the Dagster repository
+        codeServerArgs:
+          - "--host"
+          - "0.0.0.0"                                      # Bind to all interfaces
+          - "--port"
+          - "4000"                                         # Internal service port
+          - "--python-file"
+          - "src/dataframe_level_anonymisation/repository.py"         # Repository definition file
+
+        # Environment variables for the code location
+        # Inherits database credentials and configuration from K8s secrets/configmaps
+        envFrom:
+          - secretRef:
+              name: dataframe-level-anonymisation-dagster-db-secret  # Database credentials
+          - configMapRef:
+              name: dataframe-level-anonymisation-dagster-db-config  # Database configuration
+
+        # Container image configuration for the code location
+        # Uses GitLab container registry with specific version for test stability
+        # MANAGED MY GITLAB CI/CD - DO NOT CHANGE MANUALLY
+        image:
+          pullPolicy: IfNotPresent                         # Cache images locally for faster startup
+          repository: code.europa.eu:4567/simpl/simpl-open/development/data-services/dataframe-level-anonymisation
+          tag: 0.3.0-SNAPSHOT.82.b8db48f7 # DO NOT CHANGE - replaced automatically by the pipeline before releasing
+
+        # Port configuration - must match codeServerArgs port
+        port: 4000
+
+        # Resource limits optimized for test environment
+        # Conservative allocation to allow multiple services on limited test infrastructure
+        resources:
+          requests:
+            cpu: 100m      # Minimum CPU - adequate for test workloads
+            memory: 256Mi  # Base memory for Python application
+          limits:
+            cpu: 500m      # CPU burst limit - prevents resource starvation
+            memory: 512Mi  # Memory ceiling - sufficient for test scenarios
+
+        # Health checks for container lifecycle management
+        # Ensures containers are ready before receiving traffic
+        livenessProbe:
+          tcpSocket:
+            port: 4000
+          periodSeconds: 30      # Check every 30 seconds
+          timeoutSeconds: 5      # 5 second timeout per check
+          failureThreshold: 3    # Restart after 3 consecutive failures
+
+        readinessProbe:
+          tcpSocket:
+            port: 4000
+          periodSeconds: 10      # More frequent readiness checks
+          timeoutSeconds: 3      # Shorter timeout for readiness
+          failureThreshold: 3    # Mark unready after 3 failures

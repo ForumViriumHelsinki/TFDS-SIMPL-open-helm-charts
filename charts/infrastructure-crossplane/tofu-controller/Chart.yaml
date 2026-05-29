@@ -1,0 +1,9 @@
+apiVersion: v2
+name: provisioner-dependencies-terraform
+description: Chart which installs dependencies for the Provisioner
+version: 0.1.0
+
+dependencies:
+  - name: tf-controller
+    version: 0.15.1
+    repository: https://flux-iac.github.io/tofu-controller
