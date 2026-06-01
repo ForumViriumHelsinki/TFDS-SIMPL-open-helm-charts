@@ -2,7 +2,7 @@ server-port: &server-port 443
 management-port: &management-port 8080
 replicaCount: 1
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/tier2-gateway
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/tier2-gateway
   pullPolicy: Always
   tag: 2.11.4
 imagePullSecrets: []

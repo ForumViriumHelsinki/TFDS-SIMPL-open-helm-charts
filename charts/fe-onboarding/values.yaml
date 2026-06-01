@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/fe-onboarding
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/fe-onboarding
   pullPolicy: Always
   tag: 2.12.3
 imagePullSecrets: []

@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/data1/simpl-files
+  repository: code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files
   pullPolicy: IfNotPresent
   tag: 1.2.3
 

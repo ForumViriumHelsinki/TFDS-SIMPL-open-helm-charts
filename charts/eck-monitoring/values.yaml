@@ -1,5 +1,5 @@
 creimage:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/monitoring/eck-monitoring
+  repository: code.europa.eu:4567/simpl/simpl-open/development/monitoring/eck-monitoring
   pullPolicy: IfNotPresent
   tag: 0.5.6
 

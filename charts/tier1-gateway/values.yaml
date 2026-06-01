@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 image:
   pullPolicy: Always
-  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/tier1-gateway
   tag: 2.12.5
 
 # ------------------------------------------------------------------------------

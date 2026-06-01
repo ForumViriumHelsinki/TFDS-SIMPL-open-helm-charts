@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/gaia-x-edc/simpl-schema-manager-ui
+  repository: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/simpl-schema-manager-ui
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: '$PROJECT_RELEASE_VERSION'

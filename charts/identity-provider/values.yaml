@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/identity-provider
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/identity-provider
   pullPolicy: Always
   tag: 2.11.4
 imagePullSecrets: []

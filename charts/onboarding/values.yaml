@@ -2,7 +2,7 @@
 # Container image configuration
 # ------------------------------------------------------------------------------
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/onboarding
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/onboarding
   tag: 2.12.8
   pullPolicy: Always
 

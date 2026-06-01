@@ -6,7 +6,7 @@ name: fc-service
 replicaCount: 1
 
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/gaia-x-edc/simpl-fc-service
+  repository: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/simpl-fc-service
   pullPolicy: Always
   tag: 1.0.12
 

@@ -4,7 +4,7 @@ image:
     repository: secoresearch/fuseki
     tag: "5.3.0"
   schemaManager:
-    repository: registry.code.europa.eu/simpl/simpl-open/development/gaia-x-edc/simpl-schema-manager
+    repository: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/simpl-schema-manager
     tag: 0.0.13
 
 service:

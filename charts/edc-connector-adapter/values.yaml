@@ -59,7 +59,7 @@ ingress:
   ingressClass: nginx
 
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/data1/edcconnectoradapter
+  repository: code.europa.eu:4567/simpl/simpl-open/development/data1/edcconnectoradapter
   pullPolicy: IfNotPresent
   tag: 1.10.1
 

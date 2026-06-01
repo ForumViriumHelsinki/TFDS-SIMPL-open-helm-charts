@@ -84,7 +84,7 @@ federatedCatalogue:
     pathPrefix: /fc-service
 
 image:
-  repository: registry.code.europa.eu/simpl/simpl-open/development/data1/xfsc-advsearch-be
+  repository: code.europa.eu:4567/simpl/simpl-open/development/data1/xfsc-advsearch-be
   pullPolicy: Always
   tag: 1.18.0
 
