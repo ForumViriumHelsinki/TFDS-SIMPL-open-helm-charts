@@ -6,7 +6,7 @@ name: fc-service
 replicaCount: 1
 
 image:
-  repository: "${CI_REGISTRY_IMAGE}"
+  repository: registry.code.europa.eu/simpl/simpl-open/development/gaia-x-edc/simpl-fc-service
   pullPolicy: Always
   tag: 1.0.12
 

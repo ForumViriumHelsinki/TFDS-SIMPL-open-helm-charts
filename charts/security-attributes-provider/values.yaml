@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: ${CI_REGISTRY_IMAGE}
+  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/security-attributes-provider
   pullPolicy: Always
   tag: 2.12.4
 imagePullSecrets: []

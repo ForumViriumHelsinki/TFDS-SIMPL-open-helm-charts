@@ -1,6 +1,6 @@
 deployment:
   image:
-    artifact: ${CI_REGISTRY_IMAGE}
+    artifact: registry.code.europa.eu/simpl/simpl-open/development/contract-billing/notification-service
     tag: 2.1.1
     pullPolicy: Always
   replicas: 1

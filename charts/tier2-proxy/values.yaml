@@ -8,7 +8,7 @@ server:
 
 replicaCount: 1
 image:
-  repository: ${CI_REGISTRY_IMAGE}
+  repository: registry.code.europa.eu/simpl/simpl-open/development/iaa/tier2-proxy
   pullPolicy: Always
   tag: 1.5.5
 imagePullSecrets: []

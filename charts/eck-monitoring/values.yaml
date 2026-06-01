@@ -1,5 +1,5 @@
 creimage:
-  repository: "${CI_REGISTRY_IMAGE}"
+  repository: registry.code.europa.eu/simpl/simpl-open/development/monitoring/eck-monitoring
   pullPolicy: IfNotPresent
   tag: 0.5.6
 

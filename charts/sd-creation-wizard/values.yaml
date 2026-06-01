@@ -73,7 +73,7 @@ validation:
     domain: "http://sdtool-validation:8080"
 
 image:
-  repository: "${CI_REGISTRY_IMAGE}"
+  repository: registry.code.europa.eu/simpl/simpl-open/development/data1/sdtooling-api-be
   pullPolicy: IfNotPresent
   tag: 1.19.0
 
