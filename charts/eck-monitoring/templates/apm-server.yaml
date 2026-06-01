@@ -3,6 +3,10 @@ apiVersion: apm.k8s.elastic.co/v1
 kind: ApmServer
 metadata:
   name: apm-server
+  labels:
+    app: apm-server
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   version: {{ .Values.elasticVersion }}
   image: {{ .Values.apmServer.image }}:{{ default .Values.elasticVersion   .Values.apmServer.imageTag }}

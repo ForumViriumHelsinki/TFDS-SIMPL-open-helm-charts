@@ -1,0 +1,53 @@
+{{- if eq .Values.namespaceTag .Values.mainNamespace }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rollover-job
+  labels:
+    app: rollover-job
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: rollovers-script
+          configMap:
+            name: rollovers-script
+            defaultMode: 0755
+        - name: rollover-temp
+          emptyDir: {}
+      containers:
+        - name: rollover-job
+          image: alpine/git:latest
+          command: ["/bin/sh", "-c", "apk add --no-cache curl gawk coreutils bash && /bin/bash /scripts/rollovers.sh 2>&1"]
+          env:
+            - name: RELEASE_NAME
+              value: {{ .Release.Name }}
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-elasticsearch-es-elastic-user
+                  key: elastic
+            - name: STACK_VERSION
+              value: {{ .Values.elasticVersion }}
+          volumeMounts:
+            - name: rollovers-script
+              mountPath: /scripts
+            - name: rollover-temp
+              mountPath: /mnt/rollover
+            
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rollovers-script
+data:
+  rollovers.sh: |
+{{ .Files.Get "kibana/scripts/rollovers.sh" | indent 4 }}
+{{- end }}

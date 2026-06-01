@@ -4,6 +4,8 @@ kind: Beat
 metadata:
   name: heartbeat
   namespace: {{.Release.Namespace}} 
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   type: heartbeat
   serviceAccountName: heartbeat-account  
@@ -68,7 +70,6 @@ spec:
     setup.ilm.enabled: true
     setup.ilm.policy_name: heartbeat-ilm
     setup.ilm.overwrite: true
-    setup.ilm.policy_file: "/usr/share/heartbeat/ilm/heartbeat-ilm.json"
     processors:
     - add_kubernetes_metadata: {}
     - add_cloud_metadata: {}
@@ -89,68 +90,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          volumeMounts:
-          - mountPath: /usr/share/heartbeat/ilm/heartbeat-ilm.json
-            name:  heartbeat-ilm-vol
-            subPath: heartbeat-ilm.json
-        volumes:
-        - name: heartbeat-ilm-vol
-          configMap:
-            name: heartbeat-ilm-configmap
-            defaultMode: 511
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: heartbeat-ilm-configmap
-data: 
-  heartbeat-ilm.json: |
-    {
-      "policy": {
-        "phases": {
-        {{- if eq .Values.deploy_minimal_stack true }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.heartbeat.minimal_stack_ilm.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.heartbeat.minimal_stack_ilm.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.heartbeat.minimal_stack_ilm.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- else }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.heartbeat.ilm.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.heartbeat.ilm.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.heartbeat.ilm.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- end }}
-      }
-    }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -204,405 +143,256 @@ spec:
   config:
   {{- if eq .Values.agentType "authority" }}
     heartbeat.monitors:
-    - type: http  # FAILED
-      schedule: '0 * * * * * *'
+    # SERVICE Data1
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: adapter-service-{{ .Values.namespaceTag }}
       name: adapter-service-{{ .Values.namespaceTag }}
-      hosts: ["http://adapter-service.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http  # UP
-      schedule: '1 * * * * * *'
+      hosts: ["tcp://adapter-service.{{ .Values.namespaceTag }}.svc:8084"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: authentication-provider-{{ .Values.namespaceTag }}
       name: authentication-provider-{{ .Values.namespaceTag }}
-      hosts: ["http://authentication-provider.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http  # UP
-      schedule: '1 * * * * * *'
-      id: ejbca-community-helm-30080-{{ .Values.namespaceTag }}
-      name: ejbca-community-helm-30080-{{ .Values.namespaceTag }}
-      hosts: ["http://ejbca-community-helm.{{ .Values.namespaceTag }}.svc:30080/ejbca/publicweb/healthcheck/ejbcahealth"]
-    - type: http  # UP
+      hosts: ["tcp://authentication-provider.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
       schedule: '2 * * * * * *'
-      id: ejbca-community-helm-30443-{{ .Values.namespaceTag }}
-      name: ejbca-community-helm-30443-{{ .Values.namespaceTag }}
-      hosts: ["https://ejbca-community-helm.{{ .Values.namespaceTag }}.svc:30443/ejbca/publicweb/healthcheck/ejbcahealth"]
-      ssl:
-        verification_mode: none
-    - type: http  # UP
-      schedule: '3 * * * * * *'
+      id: fe-authentication-provider-authentication-provider-{{ .Values.namespaceTag }}
+      name: fe-authentication-provider-authentication-provider-{{ .Values.namespaceTag }}
+      hosts: ["tcp://fe-authentication-provider-authentication-provider.{{ .Values.namespaceTag }}.svc:3000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: fe-identity-provider-identity-provider-{{ .Values.namespaceTag }}
+      name: fe-identity-provider-identity-provider-{{ .Values.namespaceTag }}
+      hosts: ["tcp://fe-identity-provider-identity-provider.{{ .Values.namespaceTag }}.svc:3000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: fe-onboarding-onboarding-{{ .Values.namespaceTag }}
+      name: fe-onboarding-onboarding-{{ .Values.namespaceTag }}
+      hosts: ["tcp://fe-onboarding-onboarding.{{ .Values.namespaceTag }}.svc:3000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: fe-security-attribute-provider-security-attribute-provider-{{ .Values.namespaceTag }}
+      name: fe-security-attribute-provider-security-attribute-provider-{{ .Values.namespaceTag }}
+      hosts: ["tcp://fe-security-attribute-provider-security-attribute-provider.{{ .Values.namespaceTag }}.svc:3000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: fe-users-and-roles-users-roles-{{ .Values.namespaceTag }}
+      name: fe-users-and-roles-users-roles-{{ .Values.namespaceTag }}
+      hosts: ["tcp://fe-users-and-roles-users-roles.{{ .Values.namespaceTag }}.svc:3000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: identity-provider-{{ .Values.namespaceTag }}
       name: identity-provider-{{ .Values.namespaceTag }}
-      hosts: ["http://identity-provider.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: tcp   # UP
-      schedule: '4 * * * * * *'
+      hosts: ["tcp://identity-provider.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: keycloak-{{ .Values.namespaceTag }}
       name: keycloak-{{ .Values.namespaceTag }}
       hosts: ["tcp://keycloak.{{ .Values.namespaceTag }}.svc:80"]
-    - type: tcp   # UP
-      schedule: '5 * * * * * *'
-      id: keycloak-headless-{{ .Values.namespaceTag }}
-      name: keycloak-headless-{{ .Values.namespaceTag }}
-      hosts: ["tcp://keycloak-headless.{{ .Values.namespaceTag }}.svc:8080"]
-    - type: http  # UP
-      schedule: '6 * * * * * *'
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: onboarding-{{ .Values.namespaceTag }}
       name: onboarding-{{ .Values.namespaceTag }}
-      hosts: ["http://onboarding.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http  # UP
-      schedule: '7 * * * * * *'
+      hosts: ["tcp://onboarding.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: schema-manager-service-{{ .Values.namespaceTag }}
+      name: schema-manager-service-{{ .Values.namespaceTag }}
+      hosts: ["tcp://schema-manager-service.{{ .Values.namespaceTag }}.svc:8085"]
+    - type: tcp
+      schedule: '2 * * * * * *'
+      id: schema-manager-ui-{{ .Values.namespaceTag }}
+      name: schema-manager-ui-{{ .Values.namespaceTag }}
+      hosts: ["tcp://schema-manager-ui.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: security-attributes-provider-{{ .Values.namespaceTag }}
       name: security-attributes-provider-{{ .Values.namespaceTag }}
-      hosts: ["http://security-attributes-provider.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-onboarding-{{ .Values.namespaceTag }}
-      name: simpl-fe-onboarding-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-onboarding.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-participant-{{ .Values.namespaceTag }}
-      name: simpl-fe-participant-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-participant.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-sap-{{ .Values.namespaceTag }}
-      name: simpl-fe-sap-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-sap.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-usersroles-{{ .Values.namespaceTag }}
-      name: simpl-fe-usersroles-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-usersroles.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-    - type: http # Check
-      schedule: '8 * * * * * *'
+      hosts: ["tcp://security-attributes-provider.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: tier1-gateway-{{ .Values.namespaceTag }}
       name: tier1-gateway-{{ .Values.namespaceTag }}
-      hosts: ["http://tier1-gateway.{{ .Values.namespaceTag }}.svc:9000"]
-    - type: http # Check
-      schedule: '8 * * * * * *'
+      hosts: ["tcp://tier1-gateway.{{ .Values.namespaceTag }}.svc:9000"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: tier2-gateway-{{ .Values.namespaceTag }}
       name: tier2-gateway-{{ .Values.namespaceTag }}
-      hosts: ["https://tier2-gateway.{{ .Values.namespaceTag }}.svc:443"]
-      ssl:
-        verification_mode: none
-
-    - type: http  # UP
-      schedule: '9 * * * * * *'
+      hosts: ["tcp://tier2-gateway.{{ .Values.namespaceTag }}.svc:443"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: users-roles-{{ .Values.namespaceTag }}
       name: users-roles-{{ .Values.namespaceTag }}
-      hosts: ["http://users-roles.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-
-    - type: http  # UP
-      schedule: '10 * * * * * *'
-      id: xsfc-neo4j-7687-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-7687-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j.{{ .Values.namespaceTag }}.svc:7687"]
-    - type: http  # UP
-      schedule: '11 * * * * * *'
-      id: xsfc-neo4j-7474-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-7474-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j.{{ .Values.namespaceTag }}.svc:7474"]
-    - type: http # UP
-      schedule: '12 * * * * * *'
-      id: xsfc-neo4j-admin-7687-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-admin-7687-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j-admin.{{ .Values.namespaceTag }}.svc:7687"]
-    - type: http # UP
-      schedule: '13 * * * * * *'
-      id: xsfc-neo4j-admin-7474-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-admin-7474-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j-admin.{{ .Values.namespaceTag }}.svc:7474"]
-    - type: http # UP
-      schedule: '14 * * * * * *'
-      id: xsfc-neo4j-db-lb-neo4j-7474-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-db-lb-neo4j-7474-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j-db-lb-neo4j.{{ .Values.namespaceTag }}.svc:7474"]
-    - type: http # FAILED
-      schedule: '15 * * * * * *'
-      id: xsfc-neo4j-db-lb-neo4j-7473-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-db-lb-neo4j-7473-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j-db-lb-neo4j.{{ .Values.namespaceTag }}.svc:7473"]
-    - type: http # UP
-      schedule: '16 * * * * * *'
-      id: xsfc-neo4j-db-lb-neo4j-7687-{{ .Values.namespaceTag }}
-      name: xsfc-neo4j-db-lb-neo4j-7687-{{ .Values.namespaceTag }}
-      hosts: ["http://xsfc-neo4j-db-lb-neo4j.{{ .Values.namespaceTag }}.svc:7687"]
-    - type: http # FAILED
-      schedule: '22 * * * * * *'
+      hosts: ["tcp://users-roles.{{ .Values.namespaceTag }}.svc:8080"]
+    - type: tcp
+      schedule: '2 * * * * * *'
       id: xsfc-service-{{ .Values.namespaceTag }}
       name: xsfc-service-{{ .Values.namespaceTag }}
-      hosts: ["https://xsfc-service.{{ .Values.namespaceTag }}.svc:8081/"]
+      hosts: ["tcp://xsfc-service.{{ .Values.namespaceTag }}.svc:8081"]
 
 
-    - type: http
-      schedule: '17 * * * * * *'
-      id: adapter-ingress-{{ .Values.namespaceTag }}
-      name: adapter-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://adapter.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
-    - type: http
-      schedule: '17 * * * * * *'
-      id: simpl-fe-ingress-sap-{{ .Values.namespaceTag }}
-      name: simpl-fe-ingress-sap-{{ .Values.namespaceTag }}
-      hosts: ["https://authority.fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/sap"]
-    - type: http
-      schedule: '17 * * * * * *'
-      id: simpl-fe-ingress-onboarding-{{ .Values.namespaceTag }}
-      name: simpl-fe-ingress-onboarding-{{ .Values.namespaceTag }}
-      hosts: ["https://authority.fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/onboarding"]
-
-    - type: http
-      schedule: '17 * * * * * *'
-      id: simpl-fe-ingress-users-roles-{{ .Values.namespaceTag }}
-      name: simpl-fe-ingress-users-roles-{{ .Values.namespaceTag }}
-      hosts: ["https://authority.fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/users-roles"]
-
-    - type: http
-      schedule: '17 * * * * * *'
-      id: simpl-fe-ingress-participant-{{ .Values.namespaceTag }}
-      name: simpl-fe-ingress-participant-{{ .Values.namespaceTag }}
-      hosts: ["https://authority.fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/participant-utility"]
-
-    - type: http
-      schedule: '18 * * * * * *'
-      id: simpl-ingress-{{ .Values.namespaceTag }}
-      name: simpl-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://authority.be.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/"]
-    - type: http
-      schedule: '19 * * * * * *'
-      id: xsfc-service-{{ .Values.namespaceTag }}
-      name: xsfc-service-{{ .Values.namespaceTag }}
-      hosts: ["https://xsfc-server-service.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
 
   {{- end }}
 
-
   {{- if eq .Values.agentType "consumer" }}
-  # /contract/v1/health
-  # /actuator/health
+#========================================= NEW =======================================================================
     heartbeat.monitors:
-    - type: http # check up
+
+      #Data1 Services UP
+    - type: http
       schedule: '0 * * * * * *'
-      id: authentication-provider-{{ .Values.namespaceTag }}
-      name: authentication-provider-{{ .Values.namespaceTag }}
-      hosts: ["http://authentication-provider.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http # check down
-      schedule: '0 * * * * * *'
-      id: catalogue-ui-{{ .Values.namespaceTag }}
-      name: catalogue-ui-{{ .Values.namespaceTag }}
-      hosts: ["http://catalogue-ui.{{ .Values.namespaceTag }}.svc:4321/actuator/health"]
-    - type: http #check up
-      schedule: '1 * * * * * *'
-      id: contracts-consumer-{{ .Values.namespaceTag }}
-      name: contracts-consumer-{{ .Values.namespaceTag }}
-      hosts: ["http://contract-consumer.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http #check down
-      schedule: '1 * * * * * *'
-      id: contract-consumption-be-{{ .Values.namespaceTag }}
-      name: contract-consumption-be-{{ .Values.namespaceTag }}
-      hosts: ["http://contract-consumption-be.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: http #check up
-      schedule: '1 * * * * * *'
       id: edc-connector-adapter-{{ .Values.namespaceTag }}
       name: edc-connector-adapter-{{ .Values.namespaceTag }}
-      hosts: ["http://edc-connector-adapter.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-    - type: tcp   # UP
-      schedule: '4 * * * * * *'
-      id: keycloak-{{ .Values.namespaceTag }}
-      name: keycloak-{{ .Values.namespaceTag }}
-      hosts: ["tcp://keycloak.{{ .Values.namespaceTag }}.svc:80"]
-    - type: tcp   # UP
-      schedule: '5 * * * * * *'
-      id: keycloak-headless-{{ .Values.namespaceTag }}
-      name: keycloak-headless-{{ .Values.namespaceTag }}
-      hosts: ["tcp://keycloak-headless.{{ .Values.namespaceTag }}.svc:8080"]
-
-    - type: tcp   # check
-      schedule: '5 * * * * * *'
-      id: simpl-edc-service-29191-{{ .Values.namespaceTag }}
-      name: simpl-edc-service-29191-{{ .Values.namespaceTag }}
-      hosts: ["tcp://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29191"]
-    - type: tcp   # check
-      schedule: '5 * * * * * *'
-      id: simpl-edc-service-29194-{{ .Values.namespaceTag }}
-      name: simpl-edc-service-29194-{{ .Values.namespaceTag }}
-      hosts: ["tcp://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29194"]
-    - type: tcp   # check
-      schedule: '5 * * * * * *'
-      id: simpl-edc-service-29193-{{ .Values.namespaceTag }}
-      name: simpl-edc-service-29193-{{ .Values.namespaceTag }}
-      hosts: ["tcp://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29193"]
-    - type: tcp   # check
-      schedule: '5 * * * * * *'
-      id: simpl-edc-service-29192-{{ .Values.namespaceTag }}
-      name: simpl-edc-service-29192-{{ .Values.namespaceTag }}
-      hosts: ["tcp://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29192"]
-    - type: tcp   # check
-      schedule: '5 * * * * * *'
-      id: simpl-edc-service-29291-{{ .Values.namespaceTag }}
-      name: simpl-edc-service-29291-{{ .Values.namespaceTag }}
-      hosts: ["tcp://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29291"]
-
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-participant-{{ .Values.namespaceTag }}
-      name: simpl-fe-participant-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-participant.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-    - type: http # Check
-      schedule: '9 * * * * * *'
-      id: simpl-fe-usersroles-{{ .Values.namespaceTag }}
-      name: simpl-fe-usersroles-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-fe-usersroles.{{ .Values.namespaceTag }}.svc:3000/actuator/health"]
-
-
-    - type: http # Check up
-      schedule: '3 * * * * * *'
-      id: simpl-stubs-{{ .Values.namespaceTag }}
-      name: simpl-stubs-{{ .Values.namespaceTag }}
-      hosts: ["http://simpl-stubs.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-
-
-
-    - type: http # Check
-      schedule: '8 * * * * * *'
-      id: tier1-gateway-{{ .Values.namespaceTag }}
-      name: tier1-gateway-{{ .Values.namespaceTag }}
-      hosts: ["http://tier1-gateway.{{ .Values.namespaceTag }}.svc:9000"]
-    - type: http # Check
-      schedule: '8 * * * * * *'
-      id: tier2-gateway-{{ .Values.namespaceTag }}
-      name: tier2-gateway-{{ .Values.namespaceTag }}
-      hosts: ["https://tier2-gateway.{{ .Values.namespaceTag }}.svc:443"]
-      ssl:
-        verification_mode: none
-
-    - type: http  # UP
-      schedule: '9 * * * * * *'
-      id: users-roles-{{ .Values.namespaceTag }}
-      name: users-roles-{{ .Values.namespaceTag }}
-      hosts: ["http://users-roles.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-
-    - type: http  # UP
-      schedule: '9 * * * * * *'
+      hosts: ["http://edc-connector-adapter.{{ .Values.namespaceTag }}.svc:8080/status"]
+    - type: http
+      schedule: '0 * * * * * *'
       id: xfsc-advsearch-be-{{ .Values.namespaceTag }}
       name: xfsc-advsearch-be-{{ .Values.namespaceTag }}
-      hosts: ["http://xfsc-advsearch-be.{{ .Values.namespaceTag }}.svc:8080/actuator/health"]
-
-
+      hosts: ["http://xfsc-advsearch-be.{{ .Values.namespaceTag }}.svc:8080/status"]
     - type: http
-      schedule: '6 * * * * * *'
-      id: catalogue-ui-{{ .Values.namespaceTag }}
-      name: catalogue-ui-{{ .Values.namespaceTag }}
-      hosts: ["https://catalogue-ui.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/actuator/health"]  
-    - type: http  #confirmed
-      schedule: '7 * * * * * *'
+      schedule: '0 * * * * * *'
       id: contract-consumption-be-{{ .Values.namespaceTag }}
       name: contract-consumption-be-{{ .Values.namespaceTag }}
-      hosts: ["https://contract-consumption-be.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/status"]
+      hosts: ["http://contract-consumption-be.{{ .Values.namespaceTag }}.svc:8080/status"]
+      #Data1 Ingress
 
+      #Catalog & Connector Services
     - type: http
-      schedule: '17 * * * * * *'
-      id: edc-connector-adapter-{{ .Values.namespaceTag }}
-      name: edc-connector-adapter-{{ .Values.namespaceTag }}
-      hosts: ["http://edc-connector-adapter.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/actuator/health"]
+      schedule: '0 * * * * * *'
+      id: simpl-edc-service-{{ .Values.namespaceTag }}
+      name: simpl-edc-service-{{ .Values.namespaceTag }}
+      hosts: ["http://simpl-edc-service.{{ .Values.namespaceTag }}.svc:29193/management/v3/dataplanes"]
 
+      # Contract & Billing 
+      # UP
     - type: http
-      schedule: '15 * * * * * *'
-      id: simpl-edc-ingress-{{ .Values.namespaceTag }}
-      name: simpl-edc-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://edc.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
-      #check.response.status: [401]
-    - type: http
-      schedule: '15 * * * * * *'
-      id: simpl-fe-ingress-{{ .Values.namespaceTag }}
-      name: simpl-fe-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://participant.fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
-    - type: http
-      schedule: '15 * * * * * *'
-      id: simpl-ingress-{{ .Values.namespaceTag }}
-      name: simpl-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://participant.be.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+      schedule: '35 * * * * * *'
+      id: contract-consumer-{{ .Values.namespaceTag }}
+      name: contract-consumer-{{ .Values.namespaceTag }}
+      hosts: ["http://contract-consumer.{{ .Values.namespaceTag }}.svc:8080/contract/v1/health"]
 
-    - type: http #confirmed
-      schedule: '16 * * * * * *'
-      id: xfsc-advsearch-be-{{ .Values.namespaceTag }}
-      name: xfsc-advsearch-be-{{ .Values.namespaceTag }}
-      hosts: ["https://xfsc-advsearch-be.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}/actuator/health"]
+#=====================================================================================================================
 
   {{- end }}
   {{- if eq .Values.agentType "dataprovider" }}
-    heartbeat.monitors:  
+    heartbeat.monitors:
+# ====================== NEW =======================
+    # SERVICE Data1
+    # UP
     - type: http
       schedule: '2 * * * * * *'
-      id: crossplane-webhooks-{{ .Values.namespaceTag }}
-      name: crossplane-webhooks-{{ .Values.namespaceTag }}
-      hosts: ["https://crossplane-webhooks.{{ .Values.namespaceTag }}.svc:9443/actuator/health"]
+      id: edc-connector-adapter-{{ .Values.namespaceTag }}
+      name: edc-connector-adapter-{{ .Values.namespaceTag }}
+      hosts: ["http://edc-connector-adapter.{{ .Values.namespaceTag }}.svc:8080/status"]
+    # UP
     - type: http
-      schedule: '0 * * * * * *'
-      id: external-secrets-webhook-{{ .Values.namespaceTag }}
-      name: external-secrets-webhook-{{ .Values.namespaceTag }}
-      hosts: ["https://external-secrets-webhook.{{ .Values.namespaceTag }}.svc"]
-    - type: tcp
-      schedule: '6 * * * * * *'
-      id: gitea-{{ .Values.namespaceTag }}
-      name: gitea-{{ .Values.namespaceTag }}
-      hosts: ["tcp://gitea.{{ .Values.namespaceTag }}.svc:22"]
-    - type: tcp
-      schedule: '6 * * * * * *'
-      id: infrastructure-argo-cd-redis-{{ .Values.namespaceTag }}
-      name: infrastructure-argo-cd-redis-{{ .Values.namespaceTag }}
-      hosts: ["tcp://infrastructure-argo-cd-redis.{{ .Values.namespaceTag }}.svc:6379"]
+      schedule: '2 * * * * * *'
+      id: sdtool-validation-{{ .Values.namespaceTag }}
+      name: sdtool-validation-{{ .Values.namespaceTag }}
+      hosts: ["http://sdtool-validation.{{ .Values.namespaceTag }}.svc:8080/status"]
+    # UP
+    # INGRESS Data1
+    - type: http
+      schedule: '35 * * * * * *'
+      id: sd-tooling-be-{{ .Values.namespaceTag }}
+      name: sd-tooling-be-{{ .Values.namespaceTag }}
+      hosts: ["https://creation-wizard-api.{{ .Values.domainSuffix }}/status"]
+
+    # SERVICE Infra
+    # Down
     - type: tcp
       schedule: '6 * * * * * *'
       id: infrastructure-argo-cd-repo-server-{{ .Values.namespaceTag }}
       name: infrastructure-argo-cd-repo-server-{{ .Values.namespaceTag }}
       hosts: ["tcp://infrastructure-argo-cd-repo-server.{{ .Values.namespaceTag }}.svc:8081"]
-    - type: tcp
+    # Down      
+    - type: http
       schedule: '6 * * * * * *'
-      id: infrastructure-argo-cd-server-80-{{ .Values.namespaceTag }}
-      name: infrastructure-argo-cd-server-80-{{ .Values.namespaceTag }}
-      hosts: ["tcp://infrastructure-argo-cd-server.{{ .Values.namespaceTag }}.svc:80"]
-    - type: tcp
-      schedule: '6 * * * * * *'
-      id: infrastructure-argo-cd-server-443-{{ .Values.namespaceTag }}
-      name: infrastructure-argo-cd-server-443-{{ .Values.namespaceTag }}
-      hosts: ["tcp://infrastructure-argo-cd-server.{{ .Values.namespaceTag }}.svc:443"]
+      id: infrastructure-argo-cd-server-{{ .Values.namespaceTag }}
+      name: infrastructure-argo-cd-server-{{ .Values.namespaceTag }}
+      hosts: ["http://infrastructure-argo-cd-server.{{ .Values.namespaceTag }}.svc:8080"]
+    # Down
     - type: tcp
       schedule: '6 * * * * * *'
       id: infrastructure-argo-workflows-server-{{ .Values.namespaceTag }}
       name: infrastructure-argo-workflows-server-{{ .Values.namespaceTag }}
       hosts: ["tcp://infrastructure-argo-workflows-server.{{ .Values.namespaceTag }}.svc:2746"]
-
+    # Down
     - type: http
-      schedule: '0 * * * * * *'
-      id: notification-controller-{{ .Values.namespaceTag }}
-      name: notification-controller-{{ .Values.namespaceTag }}
-      hosts: ["http://notification-controller.{{ .Values.namespaceTag }}.svc"]
-    - type: http
-      schedule: '0 * * * * * *'
-      id: source-controller-{{ .Values.namespaceTag }}
-      name: source-controller-{{ .Values.namespaceTag }}
-      hosts: ["http://source-controller.{{ .Values.namespaceTag }}.svc"]
-    - type: http
-      schedule: '0 * * * * * *'
-      id: webhook-receiver-{{ .Values.namespaceTag }}
-      name: webhook-receiver-{{ .Values.namespaceTag }}
-      hosts: ["http://webhook-receiver.{{ .Values.namespaceTag }}.svc"]
-
-
-
+      schedule: '6 * * * * * *'
+      id: gitea-http-{{ .Values.namespaceTag }}
+      name: gitea-http-{{ .Values.namespaceTag }}
+      hosts: ["http://gitea-http.{{ .Values.namespaceTag }}.svc:3000"]
+    # INGRESS Infra
+    # Down
     - type: http
       schedule: '35 * * * * * *'
-      id: gitea-ingress-{{ .Values.namespaceTag }}
-      name: gitea-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://gitea.crossplane.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+      id: infrastructure-be-{{ .Values.namespaceTag }}
+      name: infrastructure-be-{{ .Values.namespaceTag }}
+      hosts: ["https://infrastructure-be.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+    # UP
     - type: http
       schedule: '35 * * * * * *'
-      id: infrastructure-argo-cd-server-ingress-{{ .Values.namespaceTag }}
-      name: infrastructure-argo-cd-server-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://argoui.crossplane.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+      id: infrastructure-fe-{{ .Values.namespaceTag }}
+      name: infrastructure-fe-{{ .Values.namespaceTag }}
+      hosts: ["https://infrastructure-fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+
+
+    # SERVICE Catalog Connector
+    # Down
+    - type: http
+      schedule: '2 * * * * * *'
+      id: simpl-edc-service-{{ .Values.namespaceTag }}
+      name: simpl-edc-service-{{ .Values.namespaceTag }}
+      hosts: ["https://simpl-edc-service.{{ .Values.namespaceTag }}.svc:19193/management/v3/dataplanes"]
+    # UP
+    - type: http
+      schedule: '2 * * * * * *'
+      id: signer-{{ .Values.namespaceTag }}
+      name: signer-{{ .Values.namespaceTag }}
+      hosts: ["http://signer.{{ .Values.namespaceTag }}.svc:8080/liveness"]
+
+    # INGRESS Catalog Connector
+    # UP
     - type: http
       schedule: '35 * * * * * *'
-      id: infrastructure-argo-workflows-server-ingress-{{ .Values.namespaceTag }}
-      name: infrastructure-argo-workflows-server-ingress-{{ .Values.namespaceTag }}
-      hosts: ["https://argoworkflows.crossplane.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+      id: catalogue-ui-{{ .Values.namespaceTag }}
+      name: catalogue-ui-{{ .Values.namespaceTag }}
+      hosts: ["https://catalogue-ui.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+    # UP
+    - type: http
+      schedule: '35 * * * * * *'
+      id: sd-ui-{{ .Values.namespaceTag }}
+      name: sd-ui-{{ .Values.namespaceTag }}
+      hosts: ["https://sd-ui.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+    - type: http
+      schedule: '35 * * * * * *'
+      id: schema-manager-fe-{{ .Values.namespaceTag }}
+      name: schema-manager-fe-{{ .Values.namespaceTag }}
+      hosts: ["https://schema-manager-fe.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
+
+    # SERVICES C&B
+    - type: http
+      schedule: '35 * * * * * *'
+      id: contract-dataprovider-{{ .Values.namespaceTag }}
+      name: contract-dataprovider-{{ .Values.namespaceTag }}
+      hosts: ["http://contract-dataprovider.{{ .Values.namespaceTag }}.svc:8080/contract/v1/health"]
+    # INGRESS C&B
+
+
+#======================================================
+
+    # - type: http
+    #   schedule: '2 * * * * * *'
+    #   id: xxx-{{ .Values.namespaceTag }}
+    #   name: xxx-{{ .Values.namespaceTag }}
+    #   hosts: ["https://xxx.{{ .Values.namespaceTag }}.svc:9443"]
+
+    # - type: http
+    #   schedule: '35 * * * * * *'
+    #   id: xxx-{{ .Values.namespaceTag }}
+    #   name: xxx-{{ .Values.namespaceTag }}
+    #   hosts: ["https://xxx.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}"]
 
   {{- end }}
     setup.ilm.enabled: true

@@ -161,9 +161,6 @@ appConfig:
     security-attributes-provider:
       url: http://security-attributes-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
 
-  openid-connect:
-    certsEndpoint: "" 
-
   client:
     authority:
       url: "" # T2 url of the authority

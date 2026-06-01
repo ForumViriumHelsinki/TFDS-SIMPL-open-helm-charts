@@ -2,5 +2,5 @@ apiVersion: v2
 name: simpl-notification-service
 description: Simpl Notification Service helm chart
 type: application
-version: ${PROJECT_RELEASE_VERSION}
-appVersion: "${PROJECT_RELEASE_VERSION}"
+version: 2.1.1
+appVersion: "2.1.1"

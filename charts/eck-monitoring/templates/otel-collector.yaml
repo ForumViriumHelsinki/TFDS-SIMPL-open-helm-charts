@@ -4,6 +4,8 @@ kind: Deployment
 metadata:
   name: otel-collector
   namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   {{- if eq .Values.deploy_minimal_stack true }}
   replicas: {{ .Values.otel_collector.minimal_stack_count }}

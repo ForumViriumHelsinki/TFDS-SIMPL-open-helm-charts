@@ -2,6 +2,6 @@ apiVersion: v1
 name: simpl-files
 description: Web Server Storage Files
 
-appVersion: ${PROJECT_RELEASE_VERSION}
+appVersion: 1.2.3
 
-version: ${PROJECT_RELEASE_VERSION}
+version: 1.2.3

@@ -5,6 +5,8 @@ metadata:
   name: logstash-beats
   labels:
     app: logstash
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   image: {{ .Values.logstash.image }}:{{ default .Values.elasticVersion  .Values.logstash.imageTag }}
   version: {{ .Values.elasticVersion }}
@@ -57,50 +59,24 @@ spec:
       labels:
         stack-namespace: {{ .Release.Namespace }} 
     spec:
+      {{ if eq .Values.loadSampleBusinessLogs true }}
+      initContainers:
+        - name: git-clone
+          image: alpine/git
+          args:
+            - clone
+            - --single-branch
+            - --branch
+            - {{ .Values.kibana.dashboardsBranch }}
+            - https://code.europa.eu/simpl/simpl-open/development/monitoring/eck-monitoring.git
+            - /mnt/ilm
+          volumeMounts:
+            - name: repo
+              mountPath: /mnt/ilm
+      {{ end }}
       securityContext:
         runAsUser: 1000
         fsGroup: 1000    
-      initContainers:
-      - name: git-clone
-        image: alpine/git
-        args:
-          - clone
-          - --single-branch
-          - --branch
-          - {{ .Values.kibana.dashboardsBranch }}
-          - https://code.europa.eu/simpl/simpl-open/development/monitoring/eck-monitoring.git
-          - /mnt/ilm/
-        volumeMounts:
-          - name: repo
-            mountPath: /mnt/ilm/
-      - name: load-objects
-        command:  ["/bin/sh", "-c", "cd /mnt/ilm/charts/kibana/scripts; chmod +x ./load_objects.sh; ./load_objects.sh 2>&1 "]
-        volumeMounts:
-          - name: repo
-            mountPath: /mnt/ilm/
-          - name:  logstash-business-ilm-vol
-            mountPath: /usr/share/logstash/ilm/logstash-business-ilm.json
-            subPath: logstash-business-ilm.json
-          - name:  logstash-technical-ilm-vol
-            mountPath: /usr/share/logstash/ilm/logstash-technical-ilm.json
-            subPath: logstash-technical-ilm.json
-          - name:  logstash-filebeat-ilm-vol
-            mountPath: /usr/share/logstash/ilm/logstash-filebeat-ilm.json
-            subPath: logstash-filebeat-ilm.json
-        env:
-        {{- if eq .Values.deploy_minimal_stack true }}
-          - name: MINIMAL_STACK
-            value: "true"
-          - name: STACK_VERSION
-            value: {{ .Values.elasticVersion }}
-        {{- end }}
-          - name: RELEASE_NAME
-            value: {{ .Release.Name }}
-          - name: ELASTIC_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Release.Name }}-elasticsearch-es-elastic-user 
-                key: elastic
       containers:
       - name: logstash
 
@@ -128,15 +104,6 @@ spec:
           mountPath: /usr/share/logstash/certs-logstash
         - name: repo
           mountPath: /mnt/ilm/
-        - name:  logstash-business-ilm-vol
-          mountPath: /usr/share/logstash/ilm/logstash-business-ilm.json
-          subPath: logstash-business-ilm.json
-        - name:  logstash-technical-ilm-vol
-          mountPath: /usr/share/logstash/ilm/logstash-technical-ilm.json
-          subPath: logstash-technical-ilm.json
-        - name:  logstash-filebeat-ilm-vol
-          mountPath: /usr/share/logstash/ilm/logstash-filebeat-ilm.json
-          subPath: logstash-filebeat-ilm.json
         env:
         {{- if eq .Values.deploy_minimal_stack true }}
           - name: MINIMAL_STACK
@@ -205,28 +172,13 @@ spec:
           secretName: logstash-secret-{{ .Values.logstash.beats.pipelines_group_name }}
       - name: repo
         emptyDir: {}
-      - name: logstash-business-ilm-vol
-        configMap:
-          name: logstash-business-ilm-configmap
-          defaultMode: 511
-      - name: logstash-technical-ilm-vol
-        configMap:
-          name: logstash-technical-ilm-configmap
-          defaultMode: 511
-      - name: logstash-filebeat-ilm-vol
-        configMap:
-          name: logstash-filebeat-ilm-configmap
-          defaultMode: 511
-  pipelinesRef:
-    secretName: logstash-{{ .Values.logstash.beats.pipelines_group_name }}-pipelines-yml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: logstash-{{ .Values.logstash.beats.pipelines_group_name }}-pipelines-yml
-data:
-  pipelines.yml: |
-   {{ tpl .Values.logstash.pipelines_yml_config $ | nindent 6 | b64enc }}
+  pipelines:
+  {{- range .Values.logstash.beats.pipelines }}
+  - pipeline.id: {{ .name }}
+    path.config: "{{ default $.Values.logstash.pipeline_defaults.config_path .config_path }}/{{ .name }}.config"
+    pipeline.workers: {{ default $.Values.logstash.pipeline_defaults.workers .pipeline_workers }}
+    pipeline.batch.size: {{ default $.Values.logstash.pipeline_defaults.batch_size .pipeline_batch_size }}
+  {{- end }}
 ---
 {{- range .Values.logstash.beats.pipelines }}
 apiVersion: v1
@@ -235,7 +187,18 @@ metadata:
   name: logstash-{{ $.Values.logstash.beats.pipelines_group_name }}-{{ .name }}-config
 data:
   {{ .name }}.config: |
+    input {
     {{- tpl .input $ | nindent 4 }}
+    {{- if eq $.Values.loadSampleBusinessLogs true }}
+      file {
+        id => "business_sample_log"
+        path => [ "/mnt/ilm/log_samples/business/business.log"]
+        add_field => { "[kubernetes][container][name]" => "tier1-gateway" }
+        tags => [ "business_sample_log" ]
+        start_position => "beginning"
+      }
+    {{- end }}
+    }
     {{- tpl .filter $ | nindent 4 }}
     {{- tpl .output $ | nindent 4 }}
 ---
@@ -303,165 +266,4 @@ spec:
   privateKey:
     encoding: "PKCS8" 
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: logstash-business-ilm-configmap
-data: 
-  logstash-business-ilm.json: |
-    {
-      "policy": {
-        "phases": {
-        {{- if eq .Values.deploy_minimal_stack true }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.logstash.minimal_stack_ilm.business.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.logstash.minimal_stack_ilm.business.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.logstash.minimal_stack_ilm.business.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- else }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.logstash.ilm.business.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.logstash.ilm.business.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.logstash.ilm.business.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- end }}
-      }
-    }
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: logstash-technical-ilm-configmap
-data: 
-  logstash-technical-ilm.json: |
-    {
-      "policy": {
-        "phases": {
-        {{- if eq .Values.deploy_minimal_stack true }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.logstash.minimal_stack_ilm.technical.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.logstash.minimal_stack_ilm.technical.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.logstash.minimal_stack_ilm.technical.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- else }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.logstash.ilm.technical.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.logstash.ilm.technical.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.logstash.ilm.technical.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- end }}
-      }
-    }
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: logstash-filebeat-ilm-configmap
-data: 
-  logstash-filebeat-ilm.json: |
-    {
-      "policy": {
-        "phases": {
-        {{- if eq .Values.deploy_minimal_stack true }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.filebeat.minimal_stack_ilm.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.filebeat.minimal_stack_ilm.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.filebeat.minimal_stack_ilm.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- else }}
-          "hot": {
-            "actions": {
-              "rollover": {
-                "max_age": "{{ .Values.filebeat.ilm.hot.max_age }}",
-                "max_primary_shard_size": "{{ .Values.filebeat.ilm.hot.max_primary_shard_size }}"
-              },
-              "set_priority": {
-                "priority": 100
-              }
-            },
-            "min_age": "0ms"
-          },
-          "delete": {
-            "min_age":  "{{ .Values.filebeat.ilm.delete.min_age }}",
-            "actions": {
-              "delete": {}
-            }
-          }
-        }
-        {{- end }}
-      }
-    }
----
-
-
 {{- end }}

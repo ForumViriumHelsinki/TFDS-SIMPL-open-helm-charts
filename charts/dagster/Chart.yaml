@@ -2,8 +2,8 @@ apiVersion: v2
 name: dagster
 description: "Local wrapper chart for Dagster, for ArgoCD"
 type: application
-version: ${PROJECT_RELEASE_VERSION}
-appVersion: ${PROJECT_RELEASE_VERSION}
+version: 0.1.12
+appVersion: 0.1.12
 
 dependencies:
   - name: dagster

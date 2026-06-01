@@ -12,22 +12,43 @@
         "@timestamp": {
           "type": "date"
         },
-        "timestamp": {
-            "type": "date"
-          },        
+        "level": {
+          "type": "keyword"
+        },
+        "msg": {
+          "type": "keyword"
+        },
+        "messageType": {
+          "type": "keyword"
+        },
+        "businessOperation": {
+          "type": "keyword"
+        },
         "origin": {
           "type": "keyword"
         },
         "destination": {
           "type": "keyword"
         },
-        "businessOperations": {
-          "type": "keyword"
-        },
-        "messageType": {
-          "type": "keyword"
-        },
         "correlationId": {
+          "type": "keyword"
+        },
+        "user": {
+          "type": "keyword"
+        },
+        "userIp": {
+          "type": "ip"
+        },
+        "thread": {
+          "type": "keyword"
+        },
+        "http.method": {
+          "type": "keyword"
+        },
+        "http.action": {
+          "type": "keyword"
+        },
+        "http.status": {
           "type": "keyword"
         }
       }

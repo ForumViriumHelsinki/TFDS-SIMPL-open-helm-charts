@@ -6,6 +6,8 @@ metadata:
   name: logstash-syslog
   labels:
     app: logstash
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   image: {{ .Values.logstash.image }}:{{ default .Values.elasticVersion  .Values.logstash.imageTag }}
   version: {{ .Values.elasticVersion }}

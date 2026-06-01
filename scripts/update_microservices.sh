@@ -15,10 +15,11 @@ echo " TFDS Microservice Updater"
 echo " Reading targets from INCLUDED_MICROSERVICES.md..."
 echo "============================================================"
 
+# Using a simpler awk approach: split by '|', then trim whitespace and backticks
 grep '^| `.*` | `.*` |' "$INDEX_FILE" | while read -r line; do
-    CHART_NAME=$(echo "$line" | awk -F"'|'" '{print }' | tr -d ' `')
-    TAG=$(echo "$line" | awk -F"'|'" '{print }' | tr -d ' `')
-    REPO_URL=$(echo "$line" | awk -F"'|'" '{print }' | tr -d ' `')
+    CHART_NAME=$(echo "$line" | awk -F'|' '{print $2}' | tr -d ' `')
+    TAG=$(echo "$line" | awk -F'|' '{print $3}' | tr -d ' `')
+    REPO_URL=$(echo "$line" | awk -F'|' '{print $5}' | tr -d ' `')
 
     echo "------------------------------------------------"
     echo "Processing: $CHART_NAME"
@@ -57,7 +58,13 @@ grep '^| `.*` | `.*` |' "$INDEX_FILE" | while read -r line; do
         cp -r "$REPO_DIR"/* "$DEST_DIR/"
     fi
 
+
+    if [ -f "$DEST_DIR/Chart.yaml" ]; then
+        sed -i '' "s/\${PROJECT_RELEASE_VERSION}/$TAG/g" "$DEST_DIR/Chart.yaml"
+    fi
+
     rm -rf "$DEST_DIR/.git"
+
     rm -rf "$REPO_DIR"
     
     echo "SUCCESS: $CHART_NAME updated."

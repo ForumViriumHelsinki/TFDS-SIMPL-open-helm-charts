@@ -27,24 +27,6 @@ Logstash input dns (for beats)
 logstash.{{ .Values.logstash.beats.pipelines_group_name }}.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
 {{- end -}}
 
-{{/*
-Logstash alerts dns
-*/}}
-{{- define "logstash.alerts.dns" -}}
-logstash.{{ .Values.logstash.alerts.pipelines_group_name }}.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
-{{- end -}}
-
-{{/*
-Logstash alerts dns for many ingressRouteTCPs
-*/}}
-{{- define "logstash.alerts.dns.array" -}}
-{{ $concatUrl := ( printf ".%s"  (include "logstash.alerts.dns" .)) }}
-{{ $urlPrefix := (default "l" .Values.logstash.urlPrefix) }}
-{{ $maxRange := (.Values.logstash.count_alerts |int ) }}
-{{- range $index :=  until $maxRange -}}
-    {{- $urlPrefix}}{{$index }}{{ $concatUrl }}{{if lt $index (sub $maxRange 1)  }},{{end}}
-{{- end -}} 
-{{- end -}}
 
 {{/*
 Logstash input dns for many ingressRouteTCPs
@@ -86,4 +68,12 @@ OTEL colletor api dns
 */}}
 {{- define "collector.dns" -}}
 collector.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
+{{- end -}}
+
+
+{{/*
+Metricbeat HPA dns
+*/}}
+{{- define "metricbeat_hpa.dns" -}}
+mbHPA.{{ .Values.namespaceTag }}.{{ .Values.domainSuffix }}
 {{- end -}}

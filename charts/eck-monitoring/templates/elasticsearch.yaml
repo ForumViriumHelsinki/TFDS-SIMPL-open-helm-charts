@@ -247,13 +247,16 @@ stringData:
               - create_index
       applications: []
 ---
-# apiVersion: cert-manager.io/v1
-# kind: ClusterIssuer
-# metadata:
-#   name: selfsigned-ca-{{  .Release.Namespace }}
-# spec:
-#   selfSigned: {}
-#---
+{{- if .Values.clusterIssuer_internal }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuer_internal }}-ca-{{ .Release.Namespace }}
+  #name: selfsigned-ca-{{  .Release.Namespace }}
+spec:
+  selfSigned: {}
+---
+{{- end}}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -264,7 +267,11 @@ spec:
   commonName: elk-ca
   secretName: elk-ca-{{ .Release.Namespace }}
   issuerRef:
-    name: {{ .Values.clusterIssuer_internal }}
+{{- if .Values.clusterIssuer_internal }}
+    name: {{ .Values.clusterIssuer_internal }}-ca-{{ .Release.Namespace }}
+{{- else }}
+    name: "dev-selfsigned"
+{{- end }}
     kind: ClusterIssuer
 ---
 apiVersion: cert-manager.io/v1

@@ -18,10 +18,12 @@ domainSuffix: "dev.simpl-europe.eu"
 
 #ClusterIssuer to generate Kibana SSL front certificate
 clusterIssuer: "dev-staging"
-clusterIssuer_internal: "dev-selfsigned"
-
+clusterIssuer_internal:
 # Variable used to deploy minimal stack with minimal resourses
 deploy_minimal_stack: false
+
+# Variable used to ingest business sample logs
+loadSampleBusinessLogs: false
 
 elasticsearch:
   image: docker.elastic.co/elasticsearch/elasticsearch
@@ -75,7 +77,7 @@ kibana:
   minimal_stack_count: 1
   image: docker.elastic.co/kibana/kibana
   #Branch name to donwload dashboards
-  dashboardsBranch: "main"
+  dashboardsBranch: "v0.5.4"
   # Kibana's image tag, by default it equals to elasticVersion
   imageTag: ""
   # name of helm release where elasticsearch is installed. If you install kibana together with elasticsearch, leave it empty.
@@ -152,7 +154,6 @@ logstash:
   minimal_stack_count_beats: 1
 
   count_syslog: 0
-  count_alerts: 1
   image: docker.elastic.co/logstash/logstash
   diskSpace: 3Gi
   minimal_stack_diskSpace: 1Gi  
@@ -175,10 +176,10 @@ logstash:
     limits:
       memory: 2Gi
       cpu: 300m
-  resources_logstash_alerts:
+  resources_logstash_mon:
     requests:
       memory: 100Mi
-      cpu: 100m
+      cpu: 50m
     limits:
       memory: 2Gi
       cpu: 500m
@@ -196,20 +197,25 @@ logstash:
     limits:
       memory: 0.5Gi
       cpu: 300m
+  resources_metricbeat_hpa:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
   cert:
     duration: 2160h0m0s # 90d
     renewBefore: 360h0m0s # 15d
-  pipelines_yml_config: |-
-    - pipeline.id: main
-      path.config: "/app/elastic/logstash/config/pipelines/*.config"  
-      pipeline.workers: 1
-      pipeline.batch.size: 125
+  pipeline_defaults:
+    workers: 1
+    batch_size: 125
+    config_path: "/app/elastic/logstash/config/pipelines"
   beats:
     pipelines_group_name: "beats"
     pipelines:
     - name: "beats-pipeline"
       input: |-
-        input {
           beats {
             port => 5044
             ssl_enabled => true
@@ -218,7 +224,11 @@ logstash:
             ssl_key => "/usr/share/logstash/certs-logstash/tls.key"
             ssl_client_authentication => "required"
           }
-        }
+          #file {
+          #  id => "my_plugin_id"
+          #  path => [ "/mnt/ilm/charts/log_samples/business/business.log"]
+          #  add_field => { "[kubernetes][container][name]" => "tier1-gateway" }
+          #}
       filter: |-
         filter {
           ## removing ELK logs
@@ -235,11 +245,11 @@ logstash:
                 }
           }
           # Business logs
-          if [kubernetes][container][name] in  ["tier1-gateway", "tier2-gateway"] {
+          if [kubernetes][container][name] in  ["tier1-gateway", "tier2-gateway", "contract-dataprovider", "contract-consumer"] {
             json {
-                    source => "message"
-                    skip_on_invalid_json => true
-                }
+              source => "message"
+              skip_on_invalid_json => true
+            }
 
             if [level] == "BUSINESS" {
               mutate { add_field => { "log_type" => "business" } }
@@ -253,29 +263,41 @@ logstash:
                   '
                 }
               if [is_json_message] {
-                if [message][msg] { mutate { add_field => { "msg" => "%{[message][msg]}" } } }
-                if [message][messageType] { mutate { add_field => { "messageType" => "%{[message][messageType]}" } } }
-                if [message][businessOperations] { mutate { add_field => { "businessOperations" => "%{[message][businessOperations]}" } } }
-                if [message][origin] { mutate { add_field => { "origin" => "%{[message][origin]}" } } }
-                if [message][httpStatus] { mutate { add_field => { "httpStatus" => "%{[message][httpStatus]}" } } }
-                if [message][destination] { mutate { add_field => { "destination" => "%{[message][destination]}" } } }                
-                if [message][correlationId] { mutate { add_field => { "correlationId" => "%{[message][correlationId]}" } } }
-                if [message][user] { mutate { add_field => { "user" => "%{[message][user]}" } } }
-          
-                mutate { remove_field => [ "[message]" ] }
-                
-                }  
-              
+                if [message][msg] and [message][msg] != "null" { mutate { add_field => { "msg" => "%{[message][msg]}" } } }
+                if [message][messageType] and [message][messageType] != "null" { mutate { add_field => { "messageType" => "%{[message][messageType]}" } } }
+                if [message][businessOperation] and [message][businessOperation] != "null" { mutate { add_field => { "businessOperation" => "%{[message][businessOperation]}" } } }
+                if [message][origin] and [message][origin] != "null" { mutate { add_field => { "origin" => "%{[message][origin]}" } } }
+                if [message][httpStatus] and [message][httpStatus] != "null" { mutate { add_field => { "httpStatus" => "%{[message][httpStatus]}" } } }
+                if [message][destination] { mutate { add_field => { "destination" => "%{[message][destination]}" } } }
+                if [message][correlationId] and [message][correlationId] != "null" { mutate { add_field => { "correlationId" => "%{[message][correlationId]}" } } }
+                if [message][user] and [message][user] != "null" { mutate { add_field => { "user" => "%{[message][user]}" } } }
 
+                ############ Added Logstash pipeline update Log Wraper 2.0 ############
+                if [message][userIp] and [message][userIp] != "null" and [message][userIp] != "None" { mutate { add_field => { "userIp" => "%{[message][userIp]}" } } }
+                if [message][customFields] and [message][customFields] != "null" {
+                  mutate {
+                    copy => { "[message][customFields]" =>  "customFields" } 
+                  }
+                }
+                #######################################################################
+                mutate { remove_field => [ "[message]", "[event][original]" ] }
               }
+
+              #Code to handle sample logs
+              if ("business_sample_log" in [tags]) {
+                ruby {
+                  code => "event.set('logstash_processed_at', Time.now());"
+                }
+                mutate {
+                  convert => { "logstash_processed_at" => "string" }
+                }
+              }
+              #######################
+            }
             else {
               mutate { add_field => { "log_type" => "technical" } }
             }
-
-
-
           }
-
           # Onboaring technical logs 
           if [kubernetes][container][name] in ["users-roles", "identity-provider", "onboarding", 
                                      "security-attributes-provider", "xsfc-advsearch-be", 
@@ -406,12 +428,13 @@ logstash:
               target => "@timestamp"
             } 
           }
-          else {
-            date {
-              match => [ "timestamp", "yyyy-MM-dd HH:mm:ss.SSS", "ISO8601", "yyyy-MM-dd HH:mm:ss", "dd MMM yyyy HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss,SSS" ]
-              target => "@timestamp"
-            }
-          }
+          #else {
+          #  date {
+          #    match => [ "timestamp", "yyyy-MM-dd HH:mm:ss.SSS", "ISO8601", "yyyy-MM-dd HH:mm:ss", "dd MMM yyyy HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss,SSS" ]
+          #    target => "@timestamp"
+          #  }
+          #}
+
           # Keep only specified fields
           mutate {
             remove_field => [
@@ -433,6 +456,15 @@ logstash:
               "[kubernetes][node]"
             ]
           }
+
+          #Code to handle sample logs
+          if ("business_sample_log" in [tags]) {
+            date {
+              match => [ "logstash_processed_at", "ISO8601" ]
+              target => "@timestamp"
+            }
+          }
+          ###########################
         }
       output: |-
         output {
@@ -459,7 +491,7 @@ logstash:
               ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
               index => "technical-logs"
               template_name => "technical-template"
-              action => "create"            
+              action => "create"
             }
           }
           #stdout { 
@@ -491,12 +523,11 @@ logstash:
             ssl_verification_mode => "full"
             ssl_certificate_authorities => "${ELASTIC_ELASTICSEARCH_ES_SSL_CERTIFICATE_AUTHORITY}"
           }
-          stdout { 
-            codec => rubydebug
-          }
+          #stdout { 
+          #  codec => rubydebug
+          #}
         }
-  single: 
-    enableMonitoring: false
+  mon: 
     kafka:
       security_protocol: "PLAINTEXT"
     pipelines:
@@ -652,6 +683,7 @@ logstash:
             security_protocol => "${LOGSTASH_KAFKA_SECURITY_PROTOCOL}"
             topics => ["${LOGSTASH_INFRASTRUCTURE_KAFKA_TOPIC_ID}"]
             codec => json
+            add_field => { "log_type" => "infrastructure" }
           }
         } 
       filter: |-
@@ -759,6 +791,7 @@ logstash:
         }
       output: |-
         output {
+          if [log_type] == "infrastructure" {
           elasticsearch {
             hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
             user => "${LOGSTASH_USER}"
@@ -768,9 +801,57 @@ logstash:
             ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
             index => "infrastructure-reports"
             action => "create"            
+            }
           }
         }
-
+    - name: "metricbeat-hpa-pipeline"
+      pipelines_group_name: "hpa"
+      input: |-
+        input {
+          beats {
+            port => 5044
+            ssl_enabled => true
+            ssl_certificate_authorities => ["/usr/share/logstash/certs-logstash/ca.crt"]
+            ssl_certificate => "/usr/share/logstash/certs-logstash/tls.crt"
+            ssl_key => "/usr/share/logstash/certs-logstash/tls.key"
+            ssl_client_authentication => "required"
+            add_field => { "log_type" => "metricbeat-hpa" }
+          }
+        }
+      filter: |-
+        filter {
+          if [http][kubernetes_hpa][items] {
+            split {
+              field => "[http][kubernetes_hpa][items]"
+            }
+            mutate {
+              rename => {
+                "[http][kubernetes_hpa][items]" => "[hpa_item]"
+              }
+            }
+            if [hpa_item][status][conditions] {
+              split {
+                field => "[hpa_item][status][conditions]"
+              }
+            }
+          }
+        }
+      output: |-
+        output {
+          if [log_type] == "metricbeat-hpa" {
+            elasticsearch {
+              hosts => [ "${ELASTIC_ELASTICSEARCH_ES_HOSTS}" ]
+              user => "${LOGSTASH_USER}"
+              password => "${LOGSTASH_PASSWORD}"
+              ssl_enabled => "true"
+              ssl_verification_mode => "full"
+              ssl_certificate_authorities => "/usr/share/logstash/config/certs/ca.crt"
+              index => "metricbeat-hpa-reports"
+              template_name => "metricbeat-hpa-template"
+              action => "create"
+            }
+          }
+        }
 filebeat:
   image: docker.elastic.co/beats/filebeat
   imageTag: ""
@@ -954,18 +1035,21 @@ filebeat:
     #  pretty: true  
 
 metricbeat:
+  image: docker.elastic.co/beats/metricbeat
+  # Metricbeat's image tag, by default it equals to elasticVersion
+  imageTag: ""
   ilm:
     hot:
       max_age: 7d
       max_primary_shard_size: 1gb
     delete:
-      min_age: 14d
+      min_age: 1d
   minimal_stack_ilm:
     hot:
       max_age: 3h
       max_primary_shard_size: 100mb
     delete:
-      min_age: 24h
+      min_age: 6h
 # NOTE: All values in resourses for memory must be set in Gi      
   resources:
     requests:
@@ -1019,6 +1103,18 @@ apmServer:
     limits:
       memory: 0.5Gi
       cpu: 300m
+  ilm:
+    hot:
+      max_age: 7d
+      max_primary_shard_size: 1gb
+    delete:
+      min_age: 14d
+  minimal_stack_ilm:
+    hot:
+      max_age: 3h
+      max_primary_shard_size: 100mb
+    delete:
+      min_age: 24h
 
 otel_collector:
   count: 2
@@ -1032,6 +1128,33 @@ otel_collector:
       memory: 1Gi
       cpu: 500m
   minimal_stack_resources:
+    requests:
+      memory: 100Mi
+      cpu: 50m
+    limits:
+      memory: 0.5Gi
+      cpu: 300m
+
+metricbeat_hpa:
+  image: docker.elastic.co/beats/metricbeat
+  imageTag: ""
+  ilm:
+    hot:
+      max_age: 7d
+      max_primary_shard_size: 1gb
+    delete:
+      min_age: 1d
+  minimal_stack_ilm:
+    hot:
+      max_age: 3h
+      max_primary_shard_size: 100mb
+    delete:
+      min_age: 6h
+  cert:
+    duration: 2160h0m0s # 90d
+    renewBefore: 360h0m0s # 15d
+# NOTE: All values in resourses for memory must be set in Gi      
+  resources:
     requests:
       memory: 100Mi
       cpu: 50m

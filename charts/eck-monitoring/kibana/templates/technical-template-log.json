@@ -77,6 +77,15 @@
         "version": {
           "type": "keyword",
           "ignore_above": 1024
+        },
+        "http.method": {
+          "type": "keyword"
+        },
+        "http.action": {
+          "type": "keyword"
+        },
+        "http.status": {
+          "type": "keyword"
         }
       }
     }
