@@ -86,7 +86,7 @@ federatedCatalogue:
 image:
   repository: "${CI_REGISTRY_IMAGE}"
   pullPolicy: Always
-  tag: "${PROJECT_RELEASE_VERSION}"
+  tag: 1.18.0
 
 web:
   mvc:

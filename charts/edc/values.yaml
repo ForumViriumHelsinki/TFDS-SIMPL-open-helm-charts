@@ -1,6 +1,6 @@
 deployment:
   image: "${CI_REGISTRY_IMAGE}"
-  tag: "${PROJECT_RELEASE_VERSION}"
+  tag: 1.0.21
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious

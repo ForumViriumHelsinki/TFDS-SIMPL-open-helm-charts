@@ -75,7 +75,7 @@ validation:
 image:
   repository: "${CI_REGISTRY_IMAGE}"
   pullPolicy: IfNotPresent
-  tag: "${PROJECT_RELEASE_VERSION}"
+  tag: 1.19.0
 
 
 web:

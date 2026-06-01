@@ -2,7 +2,7 @@ SERVICE_PORT: 8084
 CONTAINER_PORT: 8084
 DEPLOYMENT_IMAGE_PULL_POLICY: Always
 REPOSITORY: "${CI_REGISTRY_IMAGE}"
-TAG: "${PROJECT_RELEASE_VERSION}"
+TAG: 1.0.14
 
 secretEngine: kv/gaia-x
 secretConfigPath: "{{ .Values.secretEngine }}/{{ .Release.Namespace }}-adapter-simpl-backend"

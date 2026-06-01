@@ -1,7 +1,7 @@
 deployment:
   image:
     artifact: code.europa.eu:4567/simpl/simpl-open/development/contract-billing/stubs
-    tag: ${PROJECT_RELEASE_VERSION}
+    tag: 2.0.2
     pullPolicy: Always
   replicas: 1
   otel:

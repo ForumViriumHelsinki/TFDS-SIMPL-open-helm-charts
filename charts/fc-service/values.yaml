@@ -8,7 +8,7 @@ replicaCount: 1
 image:
   repository: "${CI_REGISTRY_IMAGE}"
   pullPolicy: Always
-  tag: "${PROJECT_RELEASE_VERSION}"
+  tag: 1.0.12
 
 #imagePullSecrets: []
 #nameOverride: ""

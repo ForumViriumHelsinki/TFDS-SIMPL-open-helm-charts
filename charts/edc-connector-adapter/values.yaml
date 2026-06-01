@@ -61,7 +61,7 @@ ingress:
 image:
   repository: "${CI_REGISTRY_IMAGE}"
   pullPolicy: IfNotPresent
-  tag: "${PROJECT_RELEASE_VERSION}"
+  tag: 1.10.1
 
 
 web:

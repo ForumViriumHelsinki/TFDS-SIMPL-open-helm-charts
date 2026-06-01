@@ -4,7 +4,7 @@
 image:
   pullPolicy: Always
   repository: ${CI_REGISTRY_IMAGE}
-  tag: ${PROJECT_RELEASE_VERSION}
+  tag: 2.12.5
 
 # ------------------------------------------------------------------------------
 # Application profile

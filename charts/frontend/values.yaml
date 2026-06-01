@@ -11,7 +11,7 @@ image:
   # This sets the pull policy for images.
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ${PROJECT_RELEASE_VERSION}
+  tag: 1.2.2
 env:
   VITE_API_BASE_URL: "https://be.infrastructure.dev.simpl-europe.eu"
   VITE_PUBLIC_AUTH_KEYCLOAK_SERVER_URL: "https://participant.be.dataprovider01.dev-sandbox-ionos.simpl-europe.eu"
