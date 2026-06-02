@@ -265,3 +265,10 @@ extraConfigImport: /config/kafka.yml
 # Enables development-specific behavior (e.g. local logging configuration).
 # Should be set to false in production environments.
 devMode: false
+
+
+podAnnotations:
+  vault.security.banzaicloud.io/vault-addr: "https://secrets.{{ .Values.config.app.namespaceTag | default .Values.namespaceTag.authority | default .Release.Namespace }}.{{ .Values.config.app.domainSuffix | default .Values.domainSuffix }}"
+  vault.security.banzaicloud.io/vault-role: {{ .Values.secrets.role | default "authority-role" }}
+  vault.security.banzaicloud.io/vault-path: kubernetes
+  vault.security.banzaicloud.io/vault-skip-verify: "true"

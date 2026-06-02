@@ -40,7 +40,7 @@ elasticsearch:
   minimal_stack_count: 1
   diskSpace: 60Gi
   minimal_stack_diskSpace: 10Gi
-  storageClassName: csi-cinder-high-speed
+  storageClassName: ""
 # NOTE: All values in resourses for memory must be set in Gi  
   resources:
     requests:
@@ -158,7 +158,7 @@ logstash:
   diskSpace: 3Gi
   minimal_stack_diskSpace: 1Gi  
   # name of StorageClass that will be used to create VolumeClaims. (StorageClass must exist)
-  storageClassName: csi-cinder-high-speed
+  storageClassName: ""
   imageTag: ""
   env:
 # NOTE: All values in resourses for memory must be set in Gi

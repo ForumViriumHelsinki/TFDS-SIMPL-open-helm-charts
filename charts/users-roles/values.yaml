@@ -154,3 +154,10 @@ devMode: false
 #      tracing:
 #        endpoint: [MANAGEMENT_OTLP_TRACING_ENDPOINT]
 appConfig: {}
+
+
+podAnnotations:
+  vault.security.banzaicloud.io/vault-addr: "https://secrets.{{ .Values.config.app.namespaceTag | default .Values.namespaceTag.authority | default .Release.Namespace }}.{{ .Values.config.app.domainSuffix | default .Values.domainSuffix }}"
+  vault.security.banzaicloud.io/vault-role: {{ .Values.secrets.role | default "authority-role" }}
+  vault.security.banzaicloud.io/vault-path: kubernetes
+  vault.security.banzaicloud.io/vault-skip-verify: "true"
