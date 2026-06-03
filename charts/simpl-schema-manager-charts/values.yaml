@@ -51,7 +51,7 @@ ingress:
   enabled: true
   host: schema-manager.dev.simpl-europe.eu
   path: /v1/(.*)  # Single capture group for everything after /v1/
-  pathType: Prefix  # Path matching type: Exact, Prefix, or ImplementationSpecific
+  pathType: ImplementationSpecific  # Path matching type: Exact, Prefix, or ImplementationSpecific
   tls:
     secretName: schema-manager-tls
   clusterIssuer: dev-prod
