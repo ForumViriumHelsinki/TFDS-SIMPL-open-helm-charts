@@ -17,7 +17,7 @@ dependencies:
     version: 0.42.5
     repository: https://argoproj.github.io/argo-helm
   - name: gitea
-    version: 10.4.1
+    version: 10.6.0
     repository: https://dl.gitea.com/charts
   - name: flux2
     version: 2.15.0
