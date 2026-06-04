@@ -41,6 +41,10 @@ serviceAccount:
 # ------------------------------------------------------------------------------
 # Annotations applied to the Pod.
 podAnnotations: {}
+  # vault.security.banzaicloud.io/vault-addr: "https://secrets.placeholder"
+  # vault.security.banzaicloud.io/vault-role: "placeholder-role"
+  # vault.security.banzaicloud.io/vault-path: kubernetes
+  # vault.security.banzaicloud.io/vault-skip-verify: "true"
 
 # Labels applied to the Pod.
 podLabels: {}
@@ -265,10 +269,3 @@ extraConfigImport: /config/kafka.yml
 # Enables development-specific behavior (e.g. local logging configuration).
 # Should be set to false in production environments.
 devMode: false
-
-
-podAnnotations:
-  vault.security.banzaicloud.io/vault-addr: "https://secrets.placeholder"
-  vault.security.banzaicloud.io/vault-role: "placeholder-role"
-  vault.security.banzaicloud.io/vault-path: kubernetes
-  vault.security.banzaicloud.io/vault-skip-verify: "true"
