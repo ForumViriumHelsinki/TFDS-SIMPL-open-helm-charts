@@ -5,7 +5,7 @@ namespaceTag: common
 
 image:
   repository: hashicorp/vault
-  tag: 1.20.0
+  tag: 1.21.4
 
 replicasCount: 3
 
