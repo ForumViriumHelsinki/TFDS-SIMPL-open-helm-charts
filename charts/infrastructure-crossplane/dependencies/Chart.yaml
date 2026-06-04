@@ -8,7 +8,7 @@ dependencies:
     version: 1.16.2
     repository: https://charts.crossplane.io/stable
   - name: argo-cd
-    version: 6.7.13
+    version: 6.11.1
     repository: https://argoproj.github.io/argo-helm
   - name: argo-events
     version: 2.4.8
