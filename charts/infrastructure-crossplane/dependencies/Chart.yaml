@@ -20,7 +20,7 @@ dependencies:
     version: 10.4.1
     repository: https://dl.gitea.com/charts
   - name: flux2
-    version: 2.15.0
+    version: 2.18.4
     repository: https://fluxcd-community.github.io/helm-charts
   - name: external-secrets
     version: 0.19.2
