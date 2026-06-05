@@ -4,9 +4,6 @@ dependencies:
   version: 12.4.3
 - name: neo4j
   repository: https://neo4j.github.io/helm-charts/
-  version: 5.14.0
-- name: keycloak
-  repository: oci://registry-1.docker.io/bitnamicharts
-  version: 15.0.5
-digest: sha256:123540f2270cc28bb30c05bd91cf13c1dbef7d0183c138b5575c3aceb417bde1
-generated: "2024-07-25T10:38:55.461098+02:00"
+  version: 5.26.26
+digest: sha256:6f1312bbd46aa969bb830c6c113925b2e1f82aa6436bb4faf9c161624798aef5
+generated: "2026-06-05T18:52:05.409856551Z"
