@@ -14,4 +14,4 @@ type: application
 
 version: 2.2.0
 
-appVersion: "$PROJECT_RELEASE_VERSION"
+appVersion: "v2.4.3-tfds-patch1"
