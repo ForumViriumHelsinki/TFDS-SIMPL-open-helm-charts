@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/simpl-catalogue-client
-  pullPolicy: IfNotPresent
+  repository: ghcr.io/forumviriumhelsinki/catalogue-ui
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "$PROJECT_RELEASE_VERSION"
+  tag: "v2.4.3-tfds-patch1"
 
 imagePullSecrets: []
 nameOverride: ""
