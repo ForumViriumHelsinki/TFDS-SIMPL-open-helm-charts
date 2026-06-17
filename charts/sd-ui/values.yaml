@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/simpl-sd-ui
+  repository: ${CI_REGISTRY_IMAGE}
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "$PROJECT_RELEASE_VERSION"
@@ -79,11 +79,11 @@ resources:
     memory: 256Mi
 
 env:
-  PUBLIC_AUTH_KEYCLOAK_SERVER_URL: "https://t1.gaiax-edc-dev-sd.dev.simpl-europe.eu"
+  PUBLIC_AUTH_KEYCLOAK_SERVER_URL: "https://participant.be.dataprovider01.sandbox-cat-dat.simpl-europe.eu"
   PUBLIC_AUTH_KEYCLOAK_REALM: "participant"
   PUBLIC_AUTH_KEYCLOAK_CLIENT_ID: "frontend-cli"
-  PUBLIC_CREATION_WIZARD_API_URL: "https://t1.gaiax-edc-dev-sd.dev.simpl-europe.eu/sdtooling-api"
-  PUBLIC_CREATION_WIZARD_API_VERSION: "v1"
+  PUBLIC_CREATION_WIZARD_API_URL: "https://participant.be.dataprovider01.sandbox-cat-dat.simpl-europe.eu/sdtooling-api"
+  PUBLIC_CREATION_WIZARD_API_VERSION: "v2"
   PUBLIC_SIGNER_URL: "https://t1.gaiax-edc-dev-sd.dev.simpl-europe.eu/signer"
 
 livenessProbe:

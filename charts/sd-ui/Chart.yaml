@@ -12,6 +12,6 @@ description: A Helm chart for Kubernetes
 # pipeline. Library charts do not define any templates and therefore cannot be deployed.
 type: application
 
-version: 1.5.0
+version: ${PROJECT_RELEASE_VERSION}
 
 appVersion: "$PROJECT_RELEASE_VERSION"
