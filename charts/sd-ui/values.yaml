@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: ${CI_REGISTRY_IMAGE}
-  pullPolicy: IfNotPresent
+  repository: ghcr.io/forumviriumhelsinki/sd-ui
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "$PROJECT_RELEASE_VERSION"
+  tag: "v1.11.0-tfds-patch1"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -28,14 +28,13 @@ serviceAccount:
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext:
-  {}
+podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext:
   capabilities:
     drop:
-    - ALL
+      - ALL
   readOnlyRootFilesystem: false
   runAsNonRoot: true
   runAsUser: 1001
