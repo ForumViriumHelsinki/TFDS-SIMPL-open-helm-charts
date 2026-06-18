@@ -28,14 +28,13 @@ serviceAccount:
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext:
-  {}
+podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext:
   capabilities:
     drop:
-    - ALL
+      - ALL
   readOnlyRootFilesystem: false
   runAsNonRoot: true
   runAsUser: 1001
@@ -90,10 +89,17 @@ livenessProbe:
   httpGet:
     path: /status
     port: http
+  timeoutSeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
+
 readinessProbe:
   httpGet:
     path: /status
     port: http
+  timeoutSeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
 
 autoscaling:
   enabled: false
