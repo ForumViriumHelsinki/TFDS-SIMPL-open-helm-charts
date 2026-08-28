@@ -123,7 +123,7 @@ postgresql:
   nameOverride: fc-postgres
   image:
     repository: bitnamilegacy/postgresql
-    tag: "15.0.0"
+    tag: "15.10.0"
   auth:
     postgresPassword: postgres
   primary:
