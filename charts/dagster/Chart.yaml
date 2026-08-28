@@ -7,5 +7,5 @@ appVersion: 0.1.12
 
 dependencies:
   - name: dagster
-    version: 1.13.7
+    version: 1.13.19
     repository: "https://dagster-io.github.io/helm"
