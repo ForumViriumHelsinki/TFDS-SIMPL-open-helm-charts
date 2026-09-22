@@ -60,7 +60,9 @@ grep '^| `.*` | `.*` |' "$INDEX_FILE" | while read -r line; do
 
 
     if [ -f "$DEST_DIR/Chart.yaml" ]; then
-        sed -i '' "s/\${PROJECT_RELEASE_VERSION}/$TAG/g" "$DEST_DIR/Chart.yaml"
+        # `-i.bak` (not `-i ''`) so this also runs on Linux/CI.
+        sed -i.bak "s/\${PROJECT_RELEASE_VERSION}/$TAG/g" "$DEST_DIR/Chart.yaml"
+        rm -f "$DEST_DIR/Chart.yaml.bak"
     fi
 
     rm -rf "$DEST_DIR/.git"
