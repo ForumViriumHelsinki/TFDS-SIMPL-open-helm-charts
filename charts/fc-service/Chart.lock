@@ -4,6 +4,6 @@ dependencies:
   version: 12.4.3
 - name: neo4j
   repository: https://neo4j.github.io/helm-charts/
-  version: 5.26.26
-digest: sha256:6f1312bbd46aa969bb830c6c113925b2e1f82aa6436bb4faf9c161624798aef5
-generated: "2026-06-05T18:52:05.409856551Z"
+  version: 5.26.32
+digest: sha256:ac17a851ce77103920367e2505c88ed492f95695603cd7db8d4d5fbba013f964
+generated: "2026-10-16T01:04:49.197186096Z"
