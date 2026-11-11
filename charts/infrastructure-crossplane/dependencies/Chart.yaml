@@ -23,5 +23,5 @@ dependencies:
     version: 2.18.4
     repository: https://fluxcd-community.github.io/helm-charts
   - name: external-secrets
-    version: 0.19.2
+    version: 0.20.4
     repository: https://charts.external-secrets.io/
